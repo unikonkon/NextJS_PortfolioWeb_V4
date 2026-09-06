@@ -1,0 +1,134 @@
+เกี่ยวกับ
+💻 Full Stack Developer | ReactJS | NextJS | PostgreSQL | Prisma | Express.js | NestJS
+
+I’m looking for a similar role as a Front-End Developer, Back-End Developer, or Full Stack Developer.
+
+With 4+ years of experience in web development, I specialize in building modern web applications using ReactJS, Next.js, Express.js, PostgreSQL, and Prisma. I'm passionate about creating intuitive and efficient applications, continuously learning modern web technologies, and leveraging AI tools to enhance development workflows.
+
+📂 GitHub: https://github.com/unikonkon
+🌐 Web Portfolio: https://bananafaraday.vercel.app/
+
+🧑‍💻 Full Stack Developer
+iApp Technology (Feb 2023 - Present)
+
+- Developed and integrated APIs using JavaScript, PostgreSQL, Prisma, and Express.js.
+- Built and optimized full-stack functionalities including Kibana data retrieval and CI/CD pipelines with Jenkins and Docker.
+- Enhanced frontend using React, Next.js, and TypeScript; migrated Flutter apps to web.
+- Wrote unit tests with Jest and deployed cross-platform Electron apps.
+- Authored project documentation: user manual, security, performance, and test-case documents.
+- Designed data flow diagrams with Draw.io and contributed Python scripts for MA checking.
+
+🎨 Frontend Developer
+Vertobase Company (March 2022 - December 2022)
+- Developed frontend applications with React, Next.js, and Flutter.
+- Implemented features like PIN login and responsive mobile pages.
+
+
+- Designed and built REST APIs with Node.js / Next.js (PostgreSQL, Redis, JWT) for eKYB, user signup, package pricing, and drone-data delivery to mobile and web clients
+- Built data pipelines to ingest project and company data from government sources (EGP, DBD, GOV) with rate-limit handling and automated cookie management, including PostgreSQL schema design and load testing
+- Developed risk-scoring logic in Python and Node.js, 5,000-ID batch lookup, and Excel export for project/company data
+- Delivered Next.js front-ends covering signup, profile, dashboard, and Kibana-integrated MA views, and ported a mobile app to web and Electron desktop (macOS/Windows)
+- Automated CI/CD with Jenkins + Docker (build, deploy, smoke test, auto schema migration)
+- Authored end-to-end documentation: OpenAPI specs, Postman collections, test cases, user manuals, security and performance reports, and per-endpoint architecture docs
+- Presented API architecture and functionality directly to clients
+
+- ออกแบบและพัฒนา REST API ด้วย Node.js / Next.js (PostgreSQL, Redis, JWT) สำหรับระบบ eKYB, ระบบสมัครสมาชิก, แพ็กเกจราคา และการส่งข้อมูลโดรนไปยัง mobile/web client
+- สร้าง data pipeline ดึงข้อมูลโครงการและบริษัทจากแหล่งข้อมูล (EGP, DBD, GOV) รองรับ rate limit และ cookie อัตโนมัติ พร้อมออกแบบ schema PostgreSQL และ load test
+- พัฒนา logic ประเมินความเสี่ยง (risk scoring) ด้วย Python และ Node.js, batch lookup สูงสุด 5,000 ราย และ export ข้อมูลเป็น Excel
+- พัฒนา front-end ด้วย Next.js ตั้งแต่ signup, profile, dashboard, หน้าแสดงข้อมูล MA เชื่อม Kibana จนถึง port แอปมือถือเป็น web และ package เป็น Electron desktop (macOS/Windows)
+- วางแผนสถาปัตยกรรม code/workflow, แก้ bug และปรับพฤติกรรมแอปให้ถูกต้อง
+- ทำ CI/CD และ automation ด้วย Jenkins + Docker (build, deploy, smoke test, auto-migrate schema)
+- จัดทำเอกสารครบวงจร: OpenAPI spec, Postman, test case, คู่มือผู้ใช้, security, performance และเอกสารสถาปัตยกรรมต่อ endpoint
+- นำเสนอสถาปัตยกรรมและการทำงานของ API ให้ลูกค้าโดยตรง
+
+การศึกษา
+โลโก้ มหาวิทยาลัยเทคโนโลยีสุรนารี
+มหาวิทยาลัยเทคโนโลยีสุรนารี
+
+Bachelor of Engineering - BE, Electrical and Electronics Engineering
+
+ก.ค. 2015 – พ.ย. 2020
+
+กิจกรรมและสังคม: - A-math bronze medal in the men's
+team category at the 45th
+Thailand University Games (2018)
+- Training Electronic circuit simulation.
+- Project training IOT, Arduino and ESP8266.
+- Leadership Training Camp Class 21 SUT LDC
+- Working Group Welcomed Freshmen 2017 - 2018
+- SUT STARTUP CAMP #13
+- Sporting A-math event Thailand University Games
+
+Work History
+- Design program And use Robots at ABB in Thailand | Nov 2019 - FEB 202
+Senior Electronic Project
+- Design a Project to remove moisture from marigold
+flowers by using spinning techniques combined with
+hot air For farmers Marigold Planters
+
+
+
+
+SUTHEP JANTAWEE
+Software Engineering
+Email: bananammm0001@gmail.com
+GitHub: https://github.com/unikonkon
+Phone: 090-183-4036
+Web Portfolio: https://bananafaraday.vercel.app
+LinkedIn: https://www.linkedin.com/in/suthep-jantawee
+SUMMARY
+Full Stack Developer with 4 years of experience building web and desktop applications with React, Next.js, and
+NestJS. Proven track record of shipping end-to-end features — from API design and database integration to
+production front-ends — across government, enterprise, and product teams. Passionate about modern web
+technologies and leveraging AI tools to accelerate delivery. Open to Front-End, Back-End, or Full Stack roles.
+SKILLS
+Languages: HTML, CSS, JavaScript, TypeScript, Dart, SQL
+Frameworks & Libraries: React, React Native, Next.js, NestJS, Flutter, Express.js, Electron, Tailwind CSS, Ant Design, DaisyUI
+Databases & Data Tools: PostgreSQL, Kibana, Firebase, Prisma, Supabase
+DevOps & CI/CD Tools: Git Version Control, Jenkins, Vercel, Docker
+Testing & API Tools: Postman, Jest, SonarQube, Playwright
+Design & Collaboration Tools: Figma, Draw.io (Diagrams.net), ExpoGo, Slack, Lark, Discord
+AI Tools: Claude Code, Cursor, Gemini, Google Gemini API, Z.ai, ChatGPT, Codex, lovable.dev, Antigravity, Stitch AI
+Soft Skills: Creativity, Critical thinking, Responsibility, Problem solving, Communication, Teamwork
+WORK EXPERIENCE
+Full Stack Developer, iApp Technology
+Feb 2023 - Present
+Project: NBTC - Drone Data Transmission, Role: Backend Developer
+Built and deployed an API for transmitting drone data to mobile and web clients.
+Presented the API architecture and functionality directly to the client.
+Project: ACT & ACT Phase 2, Role: Full Stack Developer
+Designed and built the data-ingestion workflow to fetch project & company data from 3 government sources (EGP, DBD, GOV) and
+store it in the database.
+Automated data-fetching pipelines with Jenkins, replacing manual execution.
+Developed Python logic for project risk assessment and Excel export for project/company data.
+Integrated Kibana and new database sources into the front-end views (MA data) and Built the Phase 2 front-end web views.
+Product: iApp Speech Flow for Web, Role: Full Stack Developer
+Planned development and designed the code/workflow architecture for the web version.
+Ported the mobile codebase to a Next.js web application.
+Packaged the app as an Electron desktop build for macOS and Windows.
+Project: iisi · Hub of Talent, Role: Front-End Developer
+Integrated role-data APIs from signup into editable views per design.
+Built the profile-like and profile-view flows connected to backend data.
+Project: career-companion, Role: Front-End Developer
+Fixed front-end bugs and corrected faulty application behavior and Authored test-case documentation.
+Project: digitaltouchpoint · Wellness Chatbot, Role: Full Stack Developer
+Built Next.js APIs for the signup flow and package-pricing CRUD.
+Implemented JWT authentication to secure user login and the signup process.
+Created a dashboard to display package and user information.
+Authored project documentation: user manual, security, performance, and test-case documents.
+Product: iApp EKYB, Role: Backend Developer
+Built a Node.js data pipeline to extract records from designated sources with rate-limit handling and automated cookie management,
+designed the PostgreSQL schema to requirements, and ran load tests to determine source API limits
+Developed the eKYB REST API (Node.js, PostgreSQL, Redis) for search, risk scoring, and 5,000-ID batch lookup, with OpenAPI spec,
+tests, Jenkins + Docker CI/CD, and per-endpoint architecture documentation
+Frontend Developer, Vertobase Company
+Product: Zignway App, Role: Front-end Developer
+Tools: JavaScript, TypeScript, Next.js, Flutter, Git
+Implemented front-end UI from design using React and Next.js.
+Developed Flutter mobile features including the PIN-login flow.
+Mar 2022 - Dec 2022
+EDUCATION
+Bachelor of Engineering (Electronic Engineering)
+Suranaree University of Technology Nakhon Ratchasima, Thailand
+Graduated: July 2020
+2015 - 2020
