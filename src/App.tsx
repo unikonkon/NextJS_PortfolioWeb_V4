@@ -1,7 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Check, ChevronDown, ChevronLeft, ChevronRight, Code2, Copy, Download, ExternalLink, Github, Images, Linkedin, Mail, Menu, Mountain, Pause, Play, Search, Sparkles, X } from 'lucide-react';
 import { projects, type Project } from '../data/personalProjects';
 import { workProjects, type WorkProject } from '../data/workProject';
+import { skillCategories } from '../data/skillCategories';
 import { altitudeAt, chapterIds, formatAltitude } from './journeyMath';
 
 const Journey = lazy(() => import('./Journey.tsx'));
@@ -36,6 +37,32 @@ function category(project: Project) {
   if (project.type === 'WEB APP' || project.type === 'MOBILE APP') return filters[2];
   if (project.type === 'API') return filters[3];
   return filters[4];
+}
+
+const toolCount = new Set(skillCategories.flatMap(category => category.skills)).size;
+
+// All categories from data/skillCategories.ts shown at once; the only motion is a gentle staggered reveal when scrolled into view.
+function Toolkit() {
+  const root = useRef<HTMLElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const element = root.current;
+    if (!element || !('IntersectionObserver' in window)) { setVisible(true); return; }
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } }, { threshold: 0.15 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  return <section ref={root} className={`toolkit ${visible ? 'in-view' : ''}`} aria-labelledby="toolkit-title">
+    <div className="toolkit-heading">
+      <div><span className="eyebrow"><Code2 size={13} /> TOOLKIT</span><h3 id="toolkit-title">เครื่องมือที่ใช้ทำงาน</h3><p>{toolCount} รายการใน {skillCategories.length} หมวด จากภาษา เฟรมเวิร์ก ฐานข้อมูล ไปจนถึงเครื่องมือ AI และทักษะการทำงานร่วมกับทีม</p></div>
+    </div>
+    <div className="toolkit-grid">
+      {skillCategories.map((item, index) => <div key={item.name} className="toolkit-group" style={{ '--i': index } as CSSProperties}>
+        <div className="group-head"><span className="group-icon" aria-hidden="true">{item.icon}</span><h4>{item.name}</h4><span className="group-count">{item.skills.length}</span></div>
+        <ul className="skill-chips">{item.skills.map(skill => <li key={skill}>{skill}</li>)}</ul>
+      </div>)}
+    </div>
+  </section>;
 }
 
 function SceneLegend({ chapter }: { chapter: typeof chapters[number] }) {
@@ -178,7 +205,7 @@ export default function App() {
           <p className="journey-summary">เลื่อนลงเพื่อรู้จักผม ผ่านประสบการณ์ทำงาน ผลงานที่ทดลองสร้าง และเป้าหมายในก้าวต่อไป</p>
           <div className="hero-facts"><div className="hero-stat"><strong>4+</strong><span>ปีของประสบการณ์<br />พัฒนาซอฟต์แวร์</span></div><div className="hero-stat"><strong>{projects.length}</strong><span>โปรเจกต์ส่วนตัว<br />ที่ได้ลงมือสร้าง</span></div><div className="hero-social"><a href="https://github.com/unikonkon" target="_blank" rel="noreferrer" aria-label="GitHub"><Github size={18} /> GitHub</a><a href="https://www.linkedin.com/in/suthep-jantawee" target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin size={18} /> LinkedIn</a></div></div>
         </div>
-        <div className="tech-strip"><span>เครื่องมือที่ใช้ทำงาน</span>{['React', 'Next.js', 'TypeScript', 'Node.js', 'PostgreSQL', 'Prisma', 'Docker'].map(tech => <span className="tech-name" key={tech}>{tech}</span>)}<Code2 size={20} /></div>
+        <Toolkit />
       </section>
 
       <Travel to={chapters[1]} />

@@ -342,3 +342,38 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
   .gallery-nav { width: 34px; height: 34px; }
   .gallery-thumbs button { width: 60px; height: 40px; }
 }
+
+/* ---- Toolkit: every category from data/skillCategories.ts on a translucent panel over the 3D scene ---- */
+.toolkit { max-width: 1100px; margin: 30px auto 0; padding: 28px 30px 30px; border: 1px solid #ffffff8c; border-radius: 18px; background: linear-gradient(180deg, #f7f9f099, #eef3e57a); -webkit-backdrop-filter: blur(14px) saturate(1.15); backdrop-filter: blur(14px) saturate(1.15); box-shadow: 0 16px 60px #233e3514, inset 0 1px 0 #ffffffb3; text-align: left; color: #263d2e; }
+.toolkit-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid #2f4a3322; }
+.toolkit-heading .eyebrow { color: #4d6a4b; font-size: 10px; }
+.toolkit-heading h3 { font-size: 24px; font-weight: 500; letter-spacing: -.5px; margin-top: 8px; color: #22372a; }
+.toolkit-heading p { max-width: 640px; font-size: 12.5px; color: #43604a; margin-top: 6px; line-height: 1.7; text-wrap: pretty; }
+.toolkit-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 26px; }
+.toolkit-group { min-width: 0; padding: 16px 16px 14px; border-radius: 14px; background: #ffffff59; border: 1px solid #ffffff99; box-shadow: 0 1px 0 #ffffff80 inset; opacity: 0; transform: translateY(12px); transition: opacity .55s ease, transform .55s ease, background .25s; transition-delay: calc(var(--i) * 70ms); }
+.toolkit-group:hover { background: #ffffff80; }
+.toolkit.in-view .toolkit-group, .motion-paused .toolkit-group { opacity: 1; transform: none; }
+.motion-paused .toolkit-group { transition: none; }
+.group-head { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.group-icon { display: grid; place-items: center; min-width: 34px; height: 28px; padding: 0 6px; border-radius: 7px; font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 10px; letter-spacing: -.3px; background: #2f4a33; color: #d3eead; flex-shrink: 0; }
+.group-head h4 { font-size: 14px; font-weight: 600; color: #22372a; letter-spacing: -.2px; line-height: 1.3; }
+.group-count { margin-left: auto; font-size: 10.5px; color: #5c7457; flex-shrink: 0; }
+.skill-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.skill-chips li { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 500; color: #2b4432; background: #ffffffa6; border: 1px solid #c9d6bf; transition: background .2s, border-color .2s, transform .2s; }
+.skill-chips li:hover { background: #ffffff; border-color: #9fb58f; transform: translateY(-1px); }
+
+@media (max-width: 1100px) { .toolkit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) {
+  .toolkit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .toolkit-heading { flex-direction: column; align-items: flex-start; gap: 14px; }
+}
+@media (max-width: 760px) {
+  .toolkit { margin: 20px 18px 0; padding: 22px 18px 22px; border-radius: 14px; }
+  .toolkit-heading h3 { font-size: 21px; }
+  .toolkit-heading p { font-size: 12px; }
+}
+@media (max-width: 560px) {
+  .toolkit-grid { grid-template-columns: 1fr; gap: 12px; }
+  .toolkit-group { padding: 14px 14px 12px; }
+  .skill-chips li { font-size: 12px; padding: 6px 9px; }
+}
