@@ -4,7 +4,7 @@ test('journey renders 3D and adapts to viewport', async ({ page }, testInfo) => 
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('curiosity.');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('จากโค้ดบรรทัดแรก');
   await expect(page.locator('canvas')).toHaveCount(1);
   await expect(page.locator('.world-fallback')).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
@@ -60,7 +60,7 @@ test('reduced motion, resume download, and clipboard work', async ({ page, conte
   const downloading = page.waitForEvent('download');
   await page.getByRole('link', { name: 'ดาวน์โหลดเรซูเม่' }).click();
   const download = await downloading;
-  expect(download.suggestedFilename()).toBe('Suthep-Jantawee-Resume.txt');
+  expect(download.suggestedFilename()).toBe('Suthep-Jantawee-Resume.pdf');
   expect(await download.failure()).toBeNull();
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'คัดลอกอีเมล' }).click();
