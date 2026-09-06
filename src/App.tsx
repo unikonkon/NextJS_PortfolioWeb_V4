@@ -41,7 +41,7 @@ function Toolkit() {
   useEffect(() => {
     const element = root.current;
     if (!element || !('IntersectionObserver' in window)) { setVisible(true); return; }
-    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } }, { threshold: 0.15 });
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } }, { rootMargin: '0px 0px -12% 0px' });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -92,10 +92,15 @@ function ProjectCover({ project }: { project: Project }) {
 function Gallery({ project }: { project: Project }) {
   const images = project.slideImages?.length ? project.slideImages : [project.image];
   const [index, setIndex] = useState(0);
+  // Portrait (phone) screenshots get a tall stage so they are not shrunk into a 16:10 box.
+  const [portraitByImage, setPortraitByImage] = useState<Record<string, boolean>>({});
+  const current = images[index];
+  const portrait = portraitByImage[current] ?? (project.type === 'MOBILE APP');
   const go = (delta: number) => setIndex((index + delta + images.length) % images.length);
-  return <figure className="dialog-gallery" onKeyDown={event => { if (event.key === 'ArrowLeft') go(-1); if (event.key === 'ArrowRight') go(1); }}>
+  return <figure className={`dialog-gallery ${portrait ? 'portrait' : ''}`} onKeyDown={event => { if (event.key === 'ArrowLeft') go(-1); if (event.key === 'ArrowRight') go(1); }}>
     <div className="gallery-stage">
-      <img key={images[index]} src={webImage(images[index])} alt={`${project.title} — ภาพหน้าจอที่ ${index + 1} จาก ${images.length}`} decoding="async" />
+      {portrait && <img className="stage-blur" src={webImage(current, true)} alt="" aria-hidden="true" />}
+      <img key={current} src={webImage(current)} alt={`${project.title} — ภาพหน้าจอที่ ${index + 1} จาก ${images.length}`} decoding="async" onLoad={event => { const isPortrait = event.currentTarget.naturalHeight > event.currentTarget.naturalWidth; setPortraitByImage(map => map[current] === isPortrait ? map : { ...map, [current]: isPortrait }); }} />
       {images.length > 1 && <>
         <button type="button" className="gallery-nav prev" aria-label="ภาพก่อนหน้า" onClick={() => go(-1)}><ChevronLeft size={20} /></button>
         <button type="button" className="gallery-nav next" aria-label="ภาพถัดไป" onClick={() => go(1)}><ChevronRight size={20} /></button>

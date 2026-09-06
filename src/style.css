@@ -395,3 +395,82 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
   .work-summary-box { padding: 14px; margin-top: 18px; }
   .work-summary-box p { font-size: 12.5px; }
 }
+
+/* ---- Mobile: portrait (phone) screenshots on cards and in the gallery, plus small-screen tuning ---- */
+.gallery-stage { display: block; }
+.gallery-stage > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.gallery-stage .stage-blur { object-fit: cover; filter: blur(24px) saturate(1.2); opacity: .5; transform: scale(1.1); }
+.dialog-gallery.portrait .gallery-stage { aspect-ratio: 4 / 5; max-height: min(70vh, 640px); margin-inline: auto; width: min(100%, 520px); }
+.dialog-gallery.portrait .gallery-stage > img:not(.stage-blur) { padding: 10px 0; }
+.dialog-gallery.portrait .gallery-thumbs { justify-content: flex-start; }
+.dialog-gallery.portrait .gallery-thumbs button { width: 44px; height: 68px; }
+.dialog-gallery.portrait .gallery-thumbs img { object-position: top; }
+.project-cover.portrait { height: 270px; }
+.project-cover.portrait img { padding: 12px 0; }
+.gallery-nav { touch-action: manipulation; }
+
+@media (max-width: 1100px) { .project-cover.portrait { height: 290px; } }
+@media (max-width: 760px) {
+  .project-cover.portrait { height: 300px; }
+  .dialog-gallery.portrait .gallery-stage { aspect-ratio: 3 / 4; max-height: 62vh; }
+  .dialog-gallery.portrait .gallery-nav { top: auto; bottom: 10px; transform: none; width: 34px; height: 34px; }
+  .dialog-gallery.portrait .gallery-nav.prev { left: 10px; }
+  .dialog-gallery.portrait .gallery-nav.next { right: 10px; }
+  .dialog-gallery.portrait .gallery-count { bottom: auto; top: 10px; }
+  .gallery-thumbs { gap: 6px; }
+}
+
+/* Narrow phones (≤ 400px, e.g. iPhone SE / small Android) */
+@media (max-width: 400px) {
+  .site-header { padding-inline: 14px; }
+  .header-contact { margin-right: 10px; font-size: 10px; gap: 8px; }
+  .hero-topline { padding-inline: 14px; }
+  .opportunity-pill { font-size: 9px; padding: 6px 10px; }
+  .hero-layout { padding-inline: 16px; }
+  .hero-portrait { width: min(80vw, 280px); }
+  .portrait-tag { right: -4px; top: 12%; font-size: 9px; padding: 6px 9px; }
+  .portrait-badge { left: -6px; bottom: 14px; padding: 8px 10px; font-size: 9px; }
+  .portrait-badge strong { font-size: 13px; }
+  h1 { font-size: clamp(26px, 8.4vw, 34px); letter-spacing: -.8px; }
+  .intro-name { font-size: 13px; }
+  .hero-description { font-size: 13px; }
+  .hero-actions .button { width: 100%; }
+  .hero-bottom { margin-inline: 14px; padding: 20px 14px; }
+  .hero-facts { gap: 16px 22px; }
+  .hero-stat strong { font-size: 26px; }
+  .toolkit { margin-inline: 14px; padding: 20px 14px 20px; }
+  .toolkit-heading h3 { font-size: 19px; }
+  .toolkit-group { padding: 12px 12px 10px; }
+  .skill-chips li { font-size: 11.5px; padding: 5px 8px; }
+  .section-padding { padding: 90px 14px 30px; }
+  .chapter-content { padding: 22px 16px; border-radius: 14px; }
+  h2, .space-copy h2 { font-size: 26px; }
+  .section-description, .space-copy > p { font-size: 13px; }
+  .timeline { padding-left: 18px; }
+  .timeline article:before { left: -22px; }
+  .story-photo img { min-height: 190px; }
+  .field-note { padding: 16px; }
+  .work-row { gap: 10px; padding: 18px 0; }
+  .work-index { display: none; }
+  .work-row h4 { font-size: 15px; }
+  .work-summary { font-size: 11.5px; }
+  .project-filters { gap: 4px; }
+  .project-filters button { font-size: 10.5px; padding: 8px; min-height: 38px; }
+  .project-filters button > span { margin-left: 5px; }
+  .project-card-body { padding: 16px; }
+  .project-card h3 { font-size: 16px; }
+  .project-card p { font-size: 12px; }
+  .project-dialog { width: calc(100% - 16px); max-height: 92vh; border-radius: 10px; }
+  .dialog-inner { padding: 24px 16px 26px; }
+  .dialog-inner h2 { font-size: 22px; padding-right: 30px; }
+  .dialog-close { right: 4px; top: 4px; }
+  .detail-description { font-size: 12.5px; }
+  .dialog-links .button { width: 100%; }
+  .work-summary-box { padding: 12px; }
+  .space-portrait { width: min(78vw, 280px); }
+  .space-portrait figcaption { font-size: 10px; padding: 8px 10px; }
+  .skills-footer { gap: 10px; font-size: 11px; }
+  .space-section footer { flex-direction: column; align-items: flex-start; }
+  .footer-social { flex-wrap: wrap; gap: 10px 14px; }
+  .journey-status { font-size: 8.5px; padding: 6px 8px 6px 12px; }
+}
