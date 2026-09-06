@@ -377,3 +377,21 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
   .toolkit-group { padding: 14px 14px 12px; }
   .skill-chips li { font-size: 12px; padding: 6px 9px; }
 }
+
+/* ---- Work projects: employer line, project/product badge, Thai summary in the list and dialog ---- */
+.work-employer { margin-top: 8px; font-size: 12.5px; color: #4f6b4e; }
+.work-employer strong { font-weight: 600; color: #2f4a33; }
+.work-row > div { min-width: 0; }
+.work-row h4 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.work-kind { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 9px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; line-height: 1.5; border: 1px solid #c3d2b8; color: #4f6b4e; background: #ffffff8c; }
+.work-kind.kind-product { border-color: #98b783; background: #d3eead; color: #29432e; }
+.work-summary { margin-top: 7px; font-size: 12.5px; line-height: 1.75; color: #58705a; text-wrap: pretty; max-width: 640px; }
+.work-summary-box { margin: 22px 0 0; padding: 16px 18px; border-radius: 12px; background: #e8efdd; border-left: 3px solid #7f9d68; }
+.work-summary-box span { display: block; font-size: 10px; letter-spacing: 1px; font-weight: 600; color: #4f6b4e; margin-bottom: 6px; }
+.work-summary-box p { font-size: 13.5px; line-height: 1.85; color: #2f4a33; text-wrap: pretty; }
+@media (max-width: 760px) {
+  .work-employer { font-size: 11.5px; }
+  .work-summary { font-size: 12px; line-height: 1.7; }
+  .work-summary-box { padding: 14px; margin-top: 18px; }
+  .work-summary-box p { font-size: 12.5px; }
+}
