@@ -11,12 +11,15 @@ import { blend, clamp, measureProgress, smooth, travel } from './journeyMath';
  */
 
 // Camera look-at points for each chapter (world units) plus one "beyond space" point.
+// Each station sits ~7 units below its chapter's landmark: the strip of scene that stays visible above the
+// content cards is 6–11 units above the camera target, so the summit, the floating islands and the planet
+// are on screen exactly as their chapter opens.
 const stations = [
   new THREE.Vector3(0.2, -0.2, 0.3),
-  new THREE.Vector3(-0.6, 8, -1.6),
-  new THREE.Vector3(0.9, 16.2, 0),
-  new THREE.Vector3(0.4, 26.6, 0),
-  new THREE.Vector3(0.4, 30.5, 0),
+  new THREE.Vector3(-0.6, 2.2, -1.6),
+  new THREE.Vector3(0.9, 8.5, 0),
+  new THREE.Vector3(0.4, 20.5, 0),
+  new THREE.Vector3(0.4, 24.5, 0),
 ];
 // Backdrop colours for each chapter (light → deep space).
 const palette = ['#f4f1e4', '#e2e8dd', '#cfe1ef', '#101a2d', '#070b17'].map(hex => new THREE.Color(hex));
@@ -199,12 +202,6 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     const tent = mesh(new THREE.ConeGeometry(0.42, 0.42, 4), '#d99a6c', [0, 0.21, 0], camp);
     tent.rotation.y = Math.PI / 4;
     mesh(new THREE.OctahedronGeometry(0.07), '#ffb26b', [0.35, 0.08, 0.2], camp, true);
-    // The climber, close to the summit.
-    const climber = group(trailPoint(8.35));
-    mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.3, 6), '#3f5a8a', [0, 0.2, 0], climber);
-    mesh(new THREE.SphereGeometry(0.09, 8, 6), '#f1d3b3', [0, 0.42, 0], climber);
-    box([0.12, 0.16, 0.08], '#c55c46', [0, 0.24, -0.1], climber);
-    box([0.03, 0.4, 0.03], '#75604a', [0.13, 0.2, 0.05], climber);
     // Summit flag: the current chapter, planted at the top.
     flag(summit, '#c7ed91', 1.15);
     cloud([-4.4, 4.6, -0.6], 0.75, 0.7);
@@ -291,6 +288,124 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     }
     for (let star = 0; star < 18; star++) mesh(new THREE.OctahedronGeometry(0.035), '#e8eacf', [Math.sin(star * 1.7) * 8, 18 + (star % 4) * 0.8, -4 - (star % 3)], world, true);
 
+    /* ---------- The runner: one small figure that travels the whole journey as the visitor scrolls ---------- */
+    // Route keyframes: [c, x, y, z] where c is the camera's eased progress (chapter index + travel(fraction)).
+    // Keying the route to the camera's own easing keeps the runner inside the strip of scene that is visible
+    // above the content cards (roughly 1–6 units above the camera target early in a travel gap, 6–11 units at
+    // the end of it). Ground: cabin door → island loop. Mountain: the spiral trail — its back half is hidden
+    // behind the peak, so that stretch is crossed quickly and the visible upper trail is climbed slowly.
+    // Sky: hops between clouds and islands. Space: floating past the asteroid to the planet, rocket and satellite.
+    const route: [number, number, number, number][] = [
+      [0, -0.1, 0.03, 2.35], [0.008, -0.62, 0.03, 2.98], [0.016, 0.75, 0.03, 2.9], [0.024, 1.0, 0.03, 1.7],
+    ];
+    const rest = (from: number, until: number, x: number, y: number, z: number) => route.push([from, x, y, z], [until, x + 0.02, y, z + 0.02]);
+    const climb: [number, number][] = [[0.5, 0.03], [2.5, 0.07], [7.6, 0.12], [8.2, 0.3], [9, 0.55], [9.5, 0.72]];
+    const cForHeight = (height: number) => {
+      for (let step = 0; step < climb.length - 1; step++) {
+        const [h0, c0] = climb[step];
+        const [h1, c1] = climb[step + 1];
+        if (height <= h1) return c0 + ((c1 - c0) * (height - h0)) / (h1 - h0);
+      }
+      return climb[climb.length - 1][1];
+    };
+    for (let height = 0.5; height <= 9.5; height += 0.5) {
+      const point = trailPoint(height);
+      route.push([cForHeight(height), point[0], point[1] + 0.06, point[2]]);
+    }
+    rest(0.8, 1.45, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
+    route.push([1.6, -2.6, 12.95, 0.8], [1.75, -3.2, 14.55, -1.0], [1.85, 1.2, 15.65, 2.2], [1.95, -0.6, 18.5, 1.2]);
+    rest(2.02, 2.35, 3.9, 19.05, -1.8);
+    route.push([2.45, -1.6, 20.15, -1.4], [2.6, 2.6, 21.15, 0.6], [2.8, 3.6, 25.0, -1.6]);
+    rest(2.95, 3.05, -1.4, 28.3, -0.5);
+    route.push([3.12, 2.3, 30.1, 0.9], [3.17, -0.9, 30.9, 0.1], [3.2, -3.2, 31.2, -0.6]);
+    // Chord length per segment: resting segments (near-zero length) get no hop arc.
+    const segmentLength = route.slice(1).map(([, x, y, z], index) => Math.hypot(x - route[index][1], y - route[index][2], z - route[index][3]));
+    const routeCurve = new THREE.CatmullRomCurve3(route.map(([, x, y, z]) => new THREE.Vector3(x, y, z)), false, 'centripetal', 0.5);
+    const runner = group([route[0][1], route[0][2], route[0][3]]);
+    const body = group([0, 0, 0], runner);
+    const skin = '#f1d3b3';
+    const head = mesh(new THREE.SphereGeometry(0.115, 10, 8), skin, [0, 0.79, 0], body);
+    const hair = mesh(new THREE.SphereGeometry(0.12, 10, 8), '#3a2f2a', [0, 0.83, -0.03], body);
+    hair.scale.set(1, 0.72, 1);
+    mesh(new THREE.BoxGeometry(0.26, 0.32, 0.16), '#e26d5a', [0, 0.53, 0], body);
+    mesh(new THREE.BoxGeometry(0.16, 0.2, 0.08), '#c7ed91', [0, 0.55, -0.13], body);
+    const limb = (position: Vec, size: Vec, color: string, foot?: string) => {
+      const pivot = group(position, body);
+      mesh(new THREE.BoxGeometry(...size), color, [0, -size[1] / 2, 0], pivot);
+      if (foot) mesh(new THREE.BoxGeometry(size[0] + 0.02, 0.06, size[2] + 0.08), foot, [0, -size[1] - 0.02, 0.03], pivot);
+      return pivot;
+    };
+    const legL = limb([-0.075, 0.37, 0], [0.09, 0.33, 0.1], '#3f5a8a', '#f6f1e2');
+    const legR = limb([0.075, 0.37, 0], [0.09, 0.33, 0.1], '#3f5a8a', '#f6f1e2');
+    const armL = limb([-0.17, 0.67, 0], [0.07, 0.28, 0.08], '#e26d5a');
+    const armR = limb([0.17, 0.67, 0], [0.07, 0.28, 0.08], '#e26d5a');
+    // Space helmet: fades in once the runner leaves the atmosphere.
+    const helmetMaterial = new THREE.MeshBasicMaterial({ color: '#dff4ff', transparent: true, opacity: 0, depthWrite: false });
+    materials.set('helmet', helmetMaterial);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), helmetMaterial);
+    helmet.position.set(0, 0.79, 0);
+    helmet.visible = false;
+    body.add(helmet);
+    const runnerState = { progress: 0, previous: runner.position.clone(), speed: 0, stride: 0, amplitude: 0 };
+    const runnerPoint = new THREE.Vector3();
+    const runnerTangent = new THREE.Vector3();
+    const runnerAhead = new THREE.Vector3();
+    const yUp = new THREE.Vector3(0, 1, 0);
+    const lerpAngle = (from: number, to: number, k: number) => from + (to - from) * k;
+    let progressNow = 0;
+
+    // Places and animates the runner for an eased progress value; returns true when anything moved.
+    const updateRunner = (rawProgress: number, deltaMs: number) => {
+      const chapter = Math.min(3, Math.floor(rawProgress));
+      const progress = chapter + travel(rawProgress - chapter); // camera-eased progress, see `route`
+      const last = route.length - 1;
+      let index = 0;
+      while (index < last - 1 && progress >= route[index + 1][0]) index++;
+      const local = clamp((progress - route[index][0]) / Math.max(1e-6, route[index + 1][0] - route[index][0]), 0, 1);
+      const t = clamp((index + local) / last, 0, 1);
+      routeCurve.getPoint(t, runnerPoint);
+      routeCurve.getTangent(t, runnerTangent);
+      // Sky chapter: hop from cloud to island in little arcs; space: slow float instead of running.
+      const hopWeight = smooth((progress - 1.45) / 0.08) * (1 - smooth((progress - 2.35) / 0.1));
+      const floatWeight = smooth((progress - 2.35) / 0.15);
+      const hop = segmentLength[index] > 0.2 ? Math.sin(Math.PI * local) * 0.7 * hopWeight : 0;
+      const dt = Math.max(1, deltaMs) / 1000;
+      const distance = runnerPoint.distanceTo(runnerState.previous);
+      runnerState.previous.copy(runnerPoint);
+      // With motion paused (reduced-motion users) the figure simply stands at its place: no run cycle, no extra frames.
+      const rawSpeed = pauseRef.current ? 0 : Math.min(distance / dt, 6);
+      runnerState.speed += (rawSpeed - runnerState.speed) * (pauseRef.current ? 1 : Math.min(1, dt * 12));
+      const targetAmplitude = clamp(runnerState.speed / 1.2, 0, 1) * (1 - floatWeight);
+      runnerState.amplitude += (targetAmplitude - runnerState.amplitude) * (pauseRef.current ? 1 : Math.min(1, dt * 10));
+      runnerState.stride += distance * 9;
+      const bob = Math.abs(Math.sin(runnerState.stride)) * 0.045 * runnerState.amplitude * (1 - hopWeight);
+      const floatBob = Math.sin(elapsed * 1.3) * 0.12 * floatWeight;
+      runner.position.set(runnerPoint.x, runnerPoint.y + hop + bob + floatBob, runnerPoint.z);
+      // Face along the route (yaw only), so the figure runs "forwards" around the spiral.
+      runnerTangent.y = 0;
+      if (runnerTangent.lengthSq() > 1e-6) {
+        runnerAhead.copy(runner.position).add(runnerTangent.normalize());
+        runner.lookAt(runnerAhead);
+      }
+      // Pose blending: run cycle → hop pose → weightless drift.
+      const swing = Math.sin(runnerState.stride) * runnerState.amplitude;
+      const airborne = hopWeight * Math.sin(Math.PI * local);
+      const drift = Math.sin(elapsed * 1.1) * 0.25;
+      const k = pauseRef.current ? 1 : Math.min(1, dt * 14);
+      legL.rotation.x = lerpAngle(legL.rotation.x, swing * 0.95 * (1 - airborne) + airborne * 0.75 + floatWeight * (-0.35 + drift * 0.3), k);
+      legR.rotation.x = lerpAngle(legR.rotation.x, -swing * 0.95 * (1 - airborne) - airborne * 0.55 + floatWeight * (0.25 - drift * 0.3), k);
+      armL.rotation.x = lerpAngle(armL.rotation.x, -swing * 0.8 * (1 - airborne) - airborne * 1.6 + floatWeight * (-0.9 + drift * 0.4), k);
+      armR.rotation.x = lerpAngle(armR.rotation.x, swing * 0.8 * (1 - airborne) - airborne * 1.6 + floatWeight * (-0.9 - drift * 0.4), k);
+      armL.rotation.z = lerpAngle(armL.rotation.z, 0.1 + floatWeight * 0.9, k);
+      armR.rotation.z = lerpAngle(armR.rotation.z, -0.1 - floatWeight * 0.9, k);
+      body.rotation.x = lerpAngle(body.rotation.x, runnerState.amplitude * 0.18 * (1 - airborne) - airborne * 0.2 + floatWeight * (-0.25 + Math.sin(elapsed * 0.7) * 0.15), k);
+      body.rotation.z = lerpAngle(body.rotation.z, floatWeight * Math.sin(elapsed * 0.5) * 0.35, k);
+      helmet.visible = floatWeight > 0.02;
+      helmetMaterial.opacity = 0.32 * floatWeight;
+      // Only real travel counts as "moving" (drives the 60 fps budget); the idle float/bob is ambient like the clouds.
+      return distance > 1e-4 || runnerState.amplitude > 0.01;
+    };
+
     /* ---------- Interaction & frame loop ---------- */
     const pointer = { x: 0, y: 0 };
     const move = (event: PointerEvent) => {
@@ -335,6 +450,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     let animation = 0;
 
     const applyProgress = (progress: number) => {
+      progressNow = progress;
       const index = Math.min(Math.floor(progress), stations.length - 2);
       goal.lerpVectors(stations[index], stations[index + 1], travel(progress - index));
       goal.y += pauseRef.current ? 0 : pointer.y * 0.25;
@@ -355,9 +471,15 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     const sync = () => { applyProgress(measureProgress()); dirty = true; };
     window.addEventListener('scroll', sync, { passive: true });
 
+    let active = true;
+    let lastRaf = 0;
+    let rafGap = 16; // smoothed interval between animation frames: grows when the device cannot keep 60 fps
     const animate = (timestamp: number) => {
       animation = requestAnimationFrame(animate);
-      if (timestamp - lastFrame < 32) return;
+      if (lastRaf) rafGap += (Math.min(timestamp - lastRaf, 100) - rafGap) * 0.1;
+      lastRaf = timestamp;
+      // Full frame rate while the camera or runner is moving and the browser sustains it; otherwise ~30 fps.
+      if (timestamp - lastFrame < (active && rafGap < 24 ? 15 : 32)) return;
       const delta = Math.min(timestamp - lastFrame, 50);
       lastFrame = timestamp;
       if (hidden) return;
@@ -369,6 +491,12 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
         else target.lerp(goal, 1 - Math.exp(-delta / 250));
         dirty = true;
       }
+      // The runner eases towards the scrolled progress with the same time constant as the camera, so both stay in step.
+      if (pauseRef.current) runnerState.progress = progressNow;
+      else runnerState.progress += (progressNow - runnerState.progress) * (1 - Math.exp(-delta / 250));
+      const runnerMoved = updateRunner(runnerState.progress, delta);
+      if (runnerMoved) dirty = true;
+      active = distance > 0.002 || runnerMoved;
       if (!pauseRef.current) {
         elapsed += delta / 1000;
         world.rotation.y += (pointer.x * 0.12 + Math.sin(elapsed * 0.15) * 0.03 - world.rotation.y) * 0.04;
@@ -390,6 +518,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       renderer.render(scene, camera);
     };
     resize();
+    updateRunner(0, 16);
     animation = requestAnimationFrame(animate);
 
     return () => {
@@ -406,7 +535,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     };
   }, []);
 
-  return <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง จากเกาะและกระท่อมบนพื้นดิน ไต่ขึ้นภูเขาที่มีธงตามทาง ผ่านเมฆและบอลลูนบนท้องฟ้า สู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
+  return <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาที่มีธงตามทาง กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
     {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
   </div>;
 }
