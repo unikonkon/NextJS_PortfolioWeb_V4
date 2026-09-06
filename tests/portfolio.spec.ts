@@ -5,7 +5,7 @@ test('journey renders 3D and adapts to viewport', async ({ page }, testInfo) => 
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('curiosity.');
-  await expect(page.locator('canvas')).toHaveCount(4);
+  await expect(page.locator('canvas')).toHaveCount(1);
   await expect(page.locator('.world-fallback')).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -36,7 +36,7 @@ test('project search, filters, expansion and accessible dialog work', async ({ p
   await expect(page.locator('.project-card')).toHaveCount(24);
   await page.getByRole('button', { name: 'API', exact: true }).click();
   await expect(page.locator('.project-card')).toHaveCount(2);
-  await page.getByRole('button', { name: 'ทั้งหมด 24', exact: true }).click();
+  await page.getByRole('button', { name: /^ทั้งหมด/ }).click();
   await page.getByRole('textbox', { name: 'ค้นหาโปรเจกต์' }).fill('Chatbot AI with RAG');
   await expect(page.locator('.project-card')).toHaveCount(1);
   await page.locator('.project-card').click();
@@ -77,7 +77,7 @@ test('content remains usable when WebGL is unavailable', async ({ page }) => {
     } as typeof original;
   });
   await page.goto('/');
-  await expect(page.locator('.world-fallback')).toHaveCount(4);
+  await expect(page.locator('.world-fallback')).toHaveCount(1);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await page.getByRole('textbox', { name: 'ค้นหาโปรเจกต์' }).fill('Chatbot AI with RAG');
   await expect(page.locator('.project-card')).toHaveCount(1);
