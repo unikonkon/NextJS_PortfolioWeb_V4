@@ -79,8 +79,9 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     const sun = new THREE.DirectionalLight(0xfff4d9, 3.8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 80 });
-    sun.shadow.bias = -0.001;
+    Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 0.5, far: 80 });
+    sun.shadow.bias = -0.00025;
+    sun.shadow.normalBias = 0.025;
     scene.add(sun, sun.target);
 
     const world = new THREE.Group();
@@ -190,12 +191,75 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     const peak: Vec = [-0.9, -0.4, -2.1];
     const mountainHeight = 14; // 40% taller than the first version: room for one camp (and its card) per skill category
     const mountainRadius = 3.5;
+    // Two rear peaks frame the existing trail. Their bases sit behind the runner and skill camps.
+    const rearPeaks: { base: Vec; height: number; radius: number; color: string }[] = [
+      { base: [-5.6, -0.45, -3.0], height: 10.6, radius: 2.35, color: '#8d9b83' },
+      { base: [0.5, -0.45, -6.4], height: 11.8, radius: 2.5, color: '#9eaa8d' },
+    ];
+    rearPeaks.forEach(({ base, height, radius, color }) => {
+      const ridge = group(base);
+      mesh(new THREE.ConeGeometry(radius, height, 6), color, [0, height / 2, 0], ridge);
+      const snowHeight = height * 0.24;
+      mesh(new THREE.ConeGeometry(radius * 0.24 + 0.045, snowHeight, 6), '#e9edd7', [0, height - snowHeight / 2, 0], ridge);
+    });
     mesh(new THREE.ConeGeometry(mountainRadius, mountainHeight, 6), '#7b8b73', [peak[0], peak[1] + mountainHeight / 2, peak[2]]);
     mesh(new THREE.ConeGeometry(1.8, 5.2, 5), '#97a48a', [-3.4, 2.1, -0.4]);
     mesh(new THREE.ConeGeometry(1.2, 3.8, 5), '#8e9c83', [2.0, 1.4, -3.0]);
     mesh(new THREE.ConeGeometry(0.55, 1.4, 5), '#e2e9d5', [-3.4, 4.2, -0.4]);
     mesh(new THREE.ConeGeometry(1.1, 3.8, 6), '#edf0df', [peak[0], peak[1] + mountainHeight - 1.9, peak[2]]);
     const summit: Vec = [peak[0], peak[1] + mountainHeight, peak[2]];
+
+    // A visible sun and lightweight rays; the existing shadow-casting light supplies the actual illumination.
+    const mountainSun = group([0.5, 14.3, -5.5]);
+    const sunDisc = mesh(new THREE.SphereGeometry(0.72, 20, 12), '#ffe6a1', [0, 0, 0], mountainSun, true);
+    const sunDiscMaterial = new THREE.MeshBasicMaterial({ color: '#ffe6a1', transparent: true, depthWrite: false });
+    sunDisc.material = sunDiscMaterial;
+    materials.set('mountain-sun-disc', sunDiscMaterial);
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = glowCanvas.height = 128;
+    const glowContext = glowCanvas.getContext('2d')!;
+    const glowGradient = glowContext.createRadialGradient(64, 64, 8, 64, 64, 64);
+    glowGradient.addColorStop(0, 'rgba(255, 229, 155, 0.85)');
+    glowGradient.addColorStop(0.3, 'rgba(255, 207, 112, 0.4)');
+    glowGradient.addColorStop(1, 'rgba(255, 207, 112, 0)');
+    glowContext.fillStyle = glowGradient;
+    glowContext.fillRect(0, 0, 128, 128);
+    const glowTexture = new THREE.CanvasTexture(glowCanvas);
+    glowTexture.colorSpace = THREE.SRGBColorSpace;
+    const glowMaterial = new THREE.SpriteMaterial({ map: glowTexture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    materials.set('mountain-sun-glow', glowMaterial);
+    const sunGlow = new THREE.Sprite(glowMaterial);
+    sunGlow.scale.set(4.8, 4.8, 1);
+    mountainSun.add(sunGlow);
+    const rayMaterial = new THREE.ShaderMaterial({
+      uniforms: { strength: { value: 0 } },
+      vertexShader: `varying vec2 rayUv;
+        void main() { rayUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `varying vec2 rayUv; uniform float strength;
+        void main() {
+          float edge = pow(sin(rayUv.x * 3.14159265), 2.0);
+          float fade = smoothstep(0.0, 0.2, rayUv.y) * (1.0 - smoothstep(0.75, 1.0, rayUv.y));
+          gl_FragColor = vec4(1.0, 0.82, 0.48, edge * fade * strength * 0.12);
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    });
+    materials.set('mountain-sun-rays', rayMaterial);
+    const sunRays = group([0, 0, 0]);
+    const raySide = new THREE.Vector3(14, 0, -11).normalize();
+    ([[-5.6, 4.4, -2.5], [-0.6, 6.5, -1.5], [1.3, 5.2, -5.8]] as Vec[]).forEach(destination => {
+      const start = mountainSun.position;
+      const end = new THREE.Vector3(...destination);
+      const vertices = [start.clone().addScaledVector(raySide, -0.08), start.clone().addScaledVector(raySide, 0.08), end.clone().addScaledVector(raySide, -0.85), end.clone().addScaledVector(raySide, 0.85)];
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices.flatMap(vertex => vertex.toArray()), 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 0, 0, 1, 0], 2));
+      geometry.setIndex([0, 2, 1, 1, 2, 3]);
+      sunRays.add(new THREE.Mesh(geometry, rayMaterial));
+    });
+    const sunWorldPosition = new THREE.Vector3();
+    const mountainLightTarget = new THREE.Vector3();
+    const daylightColor = new THREE.Color('#fff4d9');
+    const mountainLightColor = new THREE.Color('#ffdfa3');
     // Switchback trail on the camera-facing slope: it swings left and right of the facing direction, so the whole
     // climb (runner, flags and camps) stays in view. Each skill camp sits at the outer end of a switchback,
     // alternating left / right. Camps are read in pairs (left + right = one stop) and all eight sit on the lower
@@ -644,6 +708,21 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       camera.lookAt(target);
       sun.position.set(target.x - 5, target.y + 12, target.z + 7);
       sun.target.position.copy(target);
+      // Blend into the visible sun's world position during the climb, so the cast shadows
+      // agree with the disc and rays even while the landscape rotates slightly with the pointer.
+      const sunlight = smooth((runnerState.progress - 0.4) / 0.45) * (1 - smooth((runnerState.progress - 1.45) / 0.5));
+      mountainSun.visible = sunRays.visible = sunlight > 0.001;
+      sunDiscMaterial.opacity = sunlight;
+      glowMaterial.opacity = sunlight * 0.8;
+      rayMaterial.uniforms.strength.value = sunlight;
+      mountainSun.getWorldPosition(sunWorldPosition);
+      mountainLightTarget.set(peak[0], 5, peak[2]);
+      world.localToWorld(mountainLightTarget);
+      sun.position.lerp(sunWorldPosition, sunlight);
+      sun.target.position.lerp(mountainLightTarget, sunlight);
+      sun.color.copy(daylightColor).lerp(mountainLightColor, sunlight);
+      sun.intensity = 3.8 + sunlight * 0.6;
+      hemisphere.intensity = 2.6 - 0.9 * sunlight - 1.2 * smooth((progressNow - 2.4) / 0.8);
       renderer.render(scene, camera);
       updateSkillCards();
     };
@@ -660,13 +739,15 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       scene.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
       materials.forEach(item => item.dispose());
+      glowTexture.dispose();
+      sun.shadow.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };
   }, []);
 
   return <>
-    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
+    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
       {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
     </div>
     {!failed && <div className="skill-overlay" aria-hidden="true">
