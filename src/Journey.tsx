@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { altitudes, blend, clamp, measureProgress, mountainRadiusAt, mountainSnowline, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
+import { createMountainFarm } from './MountainFarm';
 
 /**
  * Journey — a single continuous low-poly world rendered once behind the page.
@@ -138,16 +139,24 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     const float = (object: THREE.Object3D, amplitude = 0.12, phase = 0) => floaters.push({ object, base: object.position.y, amplitude, phase });
 
     /* ---------- Chapter 1 · Ground: the island where the first line of code was written ---------- */
-    const island = mesh(new THREE.CylinderGeometry(4.2, 2.3, 2.1, 9, 2), '#777260', [0, -1.5, 0]);
+    // Broader foothill terrace supports the range and two farm plots without scaling the runner or cabin.
+    const island = mesh(new THREE.CylinderGeometry(6.3, 4.5, 2.1, 12, 2), '#777260', [-1, -1.5, -1.3]);
+    island.scale.set(1.2, 1, 1.12);
     island.rotation.y = 0.17;
-    mesh(new THREE.ConeGeometry(2.35, 2.2, 7), '#626859', [0.1, -3.3, 0]).rotation.z = Math.PI;
-    mesh(new THREE.CylinderGeometry(4.25, 4.1, 0.32, 9), '#a4b780', [0, -0.3, 0]).rotation.y = 0.17;
-    mesh(new THREE.CylinderGeometry(3.9, 4.2, 0.16, 9), '#b8c693', [0, -0.08, 0]).rotation.y = 0.17;
+    const islandBottom = mesh(new THREE.ConeGeometry(4.55, 2.2, 10), '#626859', [-1, -3.3, -1.3]);
+    islandBottom.rotation.z = Math.PI;
+    islandBottom.scale.set(1.2, 1, 1.12);
+    const terrace = mesh(new THREE.CylinderGeometry(6.35, 6.2, 0.32, 12), '#a4b780', [-1, -0.3, -1.3]);
+    const turf = mesh(new THREE.CylinderGeometry(6.22, 6.3, 0.16, 12), '#b8c693', [-1, -0.08, -1.3]);
+    for (const layer of [terrace, turf]) { layer.rotation.y = 0.17; layer.scale.set(1.2, 1, 1.12); }
     const river = box([0.7, 0.06, 3.5], '#90ccd0', [1.4, 0.04, 1.15]);
     river.rotation.y = -0.18;
-    box([0.75, 3.4, 0.12], '#a3d8d9', [1.1, -1.68, 3.02]);
-    for (let stream = 0; stream < 4; stream++) box([0.04, 2.8 - stream * 0.23, 0.03], '#d9efdf', [0.85 + stream * 0.15, -1.55, 3.1]);
-    ([[-2.9, 0, 1.2], [-3.7, 0, 0.9], [-2.3, 0, 2.3], [2.6, 0, -0.9], [3.1, 0, 0.3], [2.7, 0, 1.9], [2.2, 0, 2.9], [-1.1, 0, 3]] as Vec[]).forEach((position, index) => tree(position, 0.6 + (index % 3) * 0.16));
+    box([0.38, 0.045, 2.85], '#90ccd0', [0.6, 0.025, 4.12]).rotation.y = -0.36;
+    box([0.48, 3.4, 0.12], '#a3d8d9', [0.1, -1.68, 5.48]);
+    for (let stream = 0; stream < 4; stream++) box([0.025, 2.8 - stream * 0.23, 0.03], '#d9efdf', [-0.06 + stream * 0.1, -1.55, 5.56]);
+    ([[-2.9, 0, 1.2], [-3.7, 0, 0.9], [-2.3, 0, 2.3], [2.6, 0, -0.9], [3.1, 0, 0.3], [4.4, 0, -0.6], [-3.5, 0, 3.2], [-1.1, 0, 3]] as Vec[]).forEach((position, index) => tree(position, 0.6 + (index % 3) * 0.16));
+    const farm = createMountainFarm(materials);
+    world.add(farm.root);
     // The cabin: where curiosity started. A warm window glows so it reads as "home" from far away.
     const cabin = group([-0.1, 0.02, 1.3]);
     box([1.25, 0.95, 1], '#e8d8b4', [0, 0.48, 0], cabin);
@@ -772,6 +781,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       progressNow = progress;
       const index = Math.min(Math.floor(progress), stations.length - 2);
       goal.lerpVectors(stations[index], stations[index + 1], travel(progress - index));
+      // Keep the expanded terrace and gardener above the viewport edge, then return to the climb framing.
+      goal.y -= 1.6 * (1 - smooth((progress - 0.65) / 0.25));
       goal.y += pauseRef.current ? 0 : pointer.y * 0.25;
       goal.x += pauseRef.current ? 0 : pointer.x * 0.35;
       colorAt(progress, bottomColor);
@@ -849,6 +860,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       sun.color.copy(daylightColor).lerp(mountainLightColor, sunlight);
       sun.intensity = 3.8 + sunlight * 0.6;
       hemisphere.intensity = 2.6 - 0.9 * sunlight - 1.2 * smooth((progressNow - 2.4) / 0.8);
+      farm.update(elapsed, camera, pauseRef.current);
       renderer.render(scene, camera);
       updateSkillCards();
     };
@@ -876,7 +888,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
   }, []);
 
   return <>
-    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
+    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง ฐานภูเขากว้างมีสวนผักและแปลงข้าว พร้อมชาวสวนสวมหมวกกำลังพรวนดิน มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
       {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
     </div>
     {!failed && <div className="skill-overlay" aria-hidden="true">
