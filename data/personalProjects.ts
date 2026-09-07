@@ -372,8 +372,23 @@ export const projects: Project[] = [
     featured: true
   },
   {
-    id: "portfolio-modern-programmer",
+    id: "portfolio-v4",
     index: "17",
+    type: "PORTFOLIO",
+    title: "💼 Portfolio V4",
+    role: "Front-End Developer",
+    description: "Dark developer-themed portfolio with a terminal-style hero, code-snippet accents and GSAP/Motion scroll animations, built on Next.js and TailwindCSS.",
+    date: "5 days",
+    image: "/project/Portfolio V4.png",
+    technologies: ["Next.js", "TypeScript", "TailwindCSS", "gsap", "motion"],
+    githubUrl: "https://github.com/unikonkon/NextJS_PortfolioWeb_V3",
+    demoUrl: "https://portfolio-web-v4.vercel.app/",
+    colorScheme: "purple",
+    featured: true
+  },
+  {
+    id: "portfolio-modern-programmer",
+    index: "18",
     type: "PORTFOLIO",
     title: "💼 Portfolio Modern Programmer",
     role: "Front-End Developer",
@@ -388,7 +403,7 @@ export const projects: Project[] = [
   },
   {
     id: "portfolio-programmer-space",
-    index: "18",
+    index: "19",
     type: "PORTFOLIO",
     title: "💼 Portfolio Programmer Space",
     role: "Front-End Developer",
@@ -403,7 +418,7 @@ export const projects: Project[] = [
   },
   {
     id: "portfolio-greek-roman",
-    index: "19",
+    index: "20",
     type: "PORTFOLIO",
     title: "💼 Portfolio Greek Roman",
     role: "Front-End Developer",
@@ -418,7 +433,7 @@ export const projects: Project[] = [
   },
   {
     id: "nestjs-jwt-auth",
-    index: "20",
+    index: "21",
     type: "API",
     title: "NestJS JWT Authentication",
     role: "Backend Developer",
@@ -433,7 +448,7 @@ export const projects: Project[] = [
 
   {
     id: "nestjs-crypto-sentiment-analysis",
-    index: "21",
+    index: "22",
     type: "API",
     title: "NestJS Crypto Sentiment Analysis API",
     role: "Backend Developer",
@@ -448,7 +463,7 @@ export const projects: Project[] = [
 
   {
     id: "coffee-seeds-landing",
-    index: "22",
+    index: "23",
     type: "Landing Page",
     title: "Coffee Seeds Landing Page",
     role: "Front-End Developer",
@@ -467,7 +482,7 @@ export const projects: Project[] = [
   },
   {
     id: "products-ai-landing",
-    index: "23",
+    index: "24",
     type: "Landing Page",
     title: "Products AI Landing Page",
     role: "Front-End Developer",
@@ -486,7 +501,7 @@ export const projects: Project[] = [
   },
   {
     id: "money-maow-pay-flow",
-    index: "24",
+    index: "25",
     type: "MOBILE APP",
     title: "🐱💰 Money Maow (แมวมันนี่)",
     role: "Mobile Developer",

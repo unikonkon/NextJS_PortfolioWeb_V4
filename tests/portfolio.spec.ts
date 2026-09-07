@@ -32,8 +32,8 @@ test('journey renders 3D and adapts to viewport', async ({ page }, testInfo) => 
 test('project search, filters, expansion and accessible dialog work', async ({ page }) => {
   await page.goto('/#sky');
   await expect(page.locator('.project-card')).toHaveCount(6);
-  await page.getByRole('button', { name: 'สำรวจทั้งหมด 24 โปรเจกต์' }).click();
-  await expect(page.locator('.project-card')).toHaveCount(24);
+  await page.getByRole('button', { name: 'สำรวจทั้งหมด 25 โปรเจกต์' }).click();
+  await expect(page.locator('.project-card')).toHaveCount(25);
   await page.getByRole('button', { name: 'API', exact: true }).click();
   await expect(page.locator('.project-card')).toHaveCount(2);
   await page.getByRole('button', { name: /^ทั้งหมด/ }).click();
