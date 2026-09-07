@@ -486,6 +486,8 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
 .skill-overlay { position: fixed; inset: var(--header-height) 0 0; z-index: -1; pointer-events: none; overflow: hidden; }
 .skill-card { position: absolute; left: 0; top: 0; width: min(236px, 44vw); padding: 12px 14px 12px; border-radius: 14px; background: #f3f7eae8; border: 1px solid #ffffff99; box-shadow: 0 10px 30px #233e3520; text-align: center; opacity: 0; visibility: hidden; will-change: transform, opacity; transform-origin: bottom left; color: #263d2e; }
 .skill-card:nth-child(even) { transform-origin: bottom right; }
+.skill-card.wide { padding-inline: 18px; }
+.skill-card.wide .skill-chips { gap: 5px 6px; }
 .skill-card .eyebrow { justify-content: center; gap: 7px; color: #4d6a4b; font-size: 9px; }
 .skill-card .group-icon { min-width: 26px; height: 20px; font-size: 8.5px; }
 .skill-card h3 { font-size: 15px; font-weight: 500; margin-top: 6px; color: #22372a; letter-spacing: -.3px; line-height: 1.25; }

@@ -661,6 +661,27 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     // visitor scrolls past its camp; only its position eases along with the camera.
     const projected = new THREE.Vector3();
     let cardWidth = 220;
+    // A card whose chips wrap past two rows at the base width grows 70% wider so its skills stay scannable; on
+    // viewports without room for two widened cards side by side the growth is scaled down (none on phones).
+    const cardWidths: number[] = new Array(skillCategories.length).fill(cardWidth);
+    const sideWidths = [cardWidth, cardWidth]; // widest card per side (left, right): the outer column sits beyond it
+    const measureCards = () => {
+      const room = (window.innerWidth - 44) / (2 * cardWidth);
+      const factor = room < 1.15 ? 1 : Math.min(1.7, room); // not worth widening by a few pixels
+      sideWidths[0] = sideWidths[1] = cardWidth;
+      cards.current.forEach((node, index) => {
+        if (!node) return;
+        node.style.width = `${cardWidth}px`;
+        let rows = 0;
+        let lastTop = -1;
+        node.querySelectorAll<HTMLElement>('.skill-chips li').forEach(chip => { if (chip.offsetTop !== lastTop) { rows++; lastTop = chip.offsetTop; } });
+        const width = rows > 2 ? Math.round(cardWidth * factor) : cardWidth;
+        cardWidths[index] = width;
+        node.style.width = `${width}px`;
+        node.classList.toggle('wide', width !== cardWidth);
+        sideWidths[index % 2] = Math.max(sideWidths[index % 2], width);
+      });
+    };
     let climbFade = '';
     // Once a pair has been shown it stays on screen when the visitor scrolls back up through the climb: pairs above
     // the current position sit at 40% like the older ones, and everything fades only when the visitor scrolls back
@@ -712,14 +733,16 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         projected.copy(campAnchors[index]).applyMatrix4(world.matrixWorld).project(camera);
         const side = index % 2 === 0 ? -1 : 1;
         const gap = 14;
+        const ownWidth = cardWidths[index];
+        const sideWidth = sideWidths[side < 0 ? 0 : 1];
         let x = ((projected.x + 1) / 2) * width;
-        x = side < 0 ? Math.max(x, cardWidth + gap + 8) : Math.min(x, width - cardWidth - gap - 8);
+        x = side < 0 ? Math.max(x, ownWidth + gap + 8) : Math.min(x, width - ownWidth - gap - 8);
         const desired = ((1 - projected.y) / 2) * height - 6;
         const cardHeight = node.offsetHeight;
         const stack = stacks[side < 0 ? 0 : 1];
         const fits = (column: number, margin: number) => Math.min(desired, stack[column] - gap) - cardHeight >= 8 + margin;
-        const outerX = x + side * (cardWidth + gap);
-        const outerRoom = side < 0 ? outerX - cardWidth - gap >= 8 : outerX + cardWidth + gap <= width - 8;
+        const outerX = x + side * (sideWidth + gap);
+        const outerRoom = side < 0 ? outerX - ownWidth - gap >= 8 : outerX + ownWidth + gap <= width - 8;
         let column = columnOf[index];
         if (column === 1 && (!outerRoom || fits(0, 40))) column = 0;
         if (column === 0 && !fits(0, 0) && outerRoom && fits(1, 0)) column = 1;
@@ -760,6 +783,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
       cardWidth = Math.min(236, Math.round(width * 0.44)); // two cards (left + right) fit side by side on a 360px phone
+      measureCards();
       dirty = true;
     };
     window.addEventListener('resize', resize);
@@ -865,6 +889,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       updateSkillCards();
     };
     resize();
+    // Chip wrapping depends on the web fonts, so re-measure the cards once they are in.
+    document.fonts?.ready.then(() => { measureCards(); dirty = true; });
     updateRunner(0, 16);
     animation = requestAnimationFrame(animate);
 
