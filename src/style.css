@@ -249,6 +249,8 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
 .space-section .scene-legend li, .space-section .scene-legend strong { color: #d1dec9; }
 .work-panel, .project-panel { background: transparent; border: 0; box-shadow: none; padding: 0; margin-top: 45px; backdrop-filter: none; }
 .travel { min-height: 34svh; padding: 40px 25px; align-items: center; text-align: center; gap: 12px; color: #365740; }
+/* Give the mountain-to-sky flight 20% more scroll space. */
+.travel.travel-to-sky { min-height: 40.8svh; }
 .travel-label, .travel small { background: #f3f7eae8; padding: 9px 15px; border-radius: 30px; font-size: 12px; letter-spacing: .3px; color: #365740; }
 .travel-line { background: #6f8e58; margin: 0; }
 .space-section .scene-legend { margin-top: 28px; }
@@ -257,6 +259,7 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
   .scene-legend li { grid-template-columns: 10px 1fr; gap: 5px 10px; }
   .scene-legend li > span:last-child { grid-column: 2; }
   .travel { min-height: 32svh; }
+  .travel.travel-to-sky { min-height: 38.4svh; }
 }
 
 /* ---- Photos: hero portrait, on-the-job photo, project covers, dialog gallery, contact portrait ---- */

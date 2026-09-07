@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { altitudes, blend, clamp, measureProgress, mountainRadiusAt, mountainSnowline, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
 import { createMountainFarm } from './MountainFarm';
+import { createSkyFlight, flightBoarding, flightEnd, flightStart } from './SkyFlight';
 
 /**
  * Journey — a single continuous low-poly world rendered once behind the page.
@@ -530,7 +531,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     // Keying the route to the camera's own easing keeps the runner inside the strip of scene that is visible
     // above the content cards (roughly 1–6 units above the camera target early in a travel gap, 6–11 units at
     // the end of it). Ground: cabin door → island loop. Mountain: the switchback trail, camp by camp, a little
-    // behind the point where each skill card pops in. Sky: hops between clouds and islands. Space: floating past
+    // behind the point where each skill card pops in. Sky: boards a plane and flies to an island. Space: floating past
     // the asteroid to the planet, rocket and satellite (sky and space keys are lifted with the taller mountain).
     const route: [number, number, number, number][] = [
       [0, -0.1, 0.03, 2.35], [0.008, -0.62, 0.03, 2.98], [0.016, 0.75, 0.03, 2.9], [0.024, 1.0, 0.03, 1.7],
@@ -562,7 +563,15 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       route.push([cForHeight(height), point[0], point[1] + 0.06, point[2]]);
     }
     rest(summitKey + 0.01, 1.45, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
-    route.push([1.6, -2.6, 12.95 + lift, 0.8], [1.75, -3.2, 14.55 + lift, -1.0], [1.85, 1.2, 15.65 + lift, 2.2], [1.95, -0.6, 18.5 + lift, 1.2]);
+    const boardingPoint = route[route.length - 1];
+    const flight = createSkyFlight(new THREE.Vector3(boardingPoint[1], boardingPoint[2], boardingPoint[3]), new THREE.Vector3(3.9, 19.05 + lift, -1.8), materials);
+    world.add(flight.root);
+    const flightPoint = new THREE.Vector3();
+    const flightTangent = new THREE.Vector3();
+    for (const progress of [1.6, 1.75, 1.85, 1.95]) {
+      flight.sample(progress, flightPoint, flightTangent);
+      route.push([progress, flightPoint.x, flightPoint.y, flightPoint.z]);
+    }
     rest(2.02, 2.35, 3.9, 19.05 + lift, -1.8);
     route.push([2.45, -1.6, 20.15 + lift, -1.4], [2.6, 2.6, 21.15 + lift, 0.6], [2.8, 3.6, 25.0 + lift, -1.6]);
     rest(2.95, 3.05, -1.4, 28.3 + lift, -0.5);
@@ -614,8 +623,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const t = clamp((index + local) / last, 0, 1);
       routeCurve.getPoint(t, runnerPoint);
       routeCurve.getTangent(t, runnerTangent);
-      // Sky chapter: hop from cloud to island in little arcs; space: slow float instead of running.
-      const hopWeight = smooth((progress - 1.45) / 0.08) * (1 - smooth((progress - 2.35) / 0.1));
+      if (progress >= flightStart && progress <= flightEnd) flight.sample(progress, runnerPoint, runnerTangent);
+      const boarding = flightBoarding(progress);
+      // The same character rides in the cockpit, then steps out before the space chapter.
+      const hopWeight = smooth((progress - 1.45) / 0.08) * (1 - smooth((progress - 2.35) / 0.1)) * (1 - boarding);
       const floatWeight = smooth((progress - 2.35) / 0.15);
       const hop = segmentLength[index] > 0.2 ? Math.sin(Math.PI * local) * 0.7 * hopWeight : 0;
       const dt = Math.max(1, deltaMs) / 1000;
@@ -624,18 +635,20 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       // With motion paused (reduced-motion users) the figure simply stands at its place: no run cycle, no extra frames.
       const rawSpeed = pauseRef.current ? 0 : Math.min(distance / dt, 6);
       runnerState.speed += (rawSpeed - runnerState.speed) * (pauseRef.current ? 1 : Math.min(1, dt * 12));
-      const targetAmplitude = clamp(runnerState.speed / 1.2, 0, 1) * (1 - floatWeight);
+      const targetAmplitude = clamp(runnerState.speed / 1.2, 0, 1) * (1 - floatWeight) * (1 - boarding);
       runnerState.amplitude += (targetAmplitude - runnerState.amplitude) * (pauseRef.current ? 1 : Math.min(1, dt * 10));
       runnerState.stride += distance * 9;
       const bob = Math.abs(Math.sin(runnerState.stride)) * 0.045 * runnerState.amplitude * (1 - hopWeight);
       const floatBob = Math.sin(elapsed * 1.3) * 0.12 * floatWeight;
       runner.position.set(runnerPoint.x, runnerPoint.y + hop + bob + floatBob, runnerPoint.z);
+      flight.update(progress, elapsed, pauseRef.current, runner.position);
       // Face along the route (yaw only), so the figure runs "forwards" around the spiral.
       runnerTangent.y = 0;
       if (runnerTangent.lengthSq() > 1e-6) {
         runnerAhead.copy(runner.position).add(runnerTangent.normalize());
         runner.lookAt(runnerAhead);
       }
+      if (boarding > 0) runner.quaternion.slerp(flight.aircraft.quaternion, boarding);
       // Pose blending: run cycle → hop pose → weightless drift.
       const swing = Math.sin(runnerState.stride) * runnerState.amplitude;
       const airborne = hopWeight * Math.sin(Math.PI * local);
@@ -649,6 +662,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       armR.rotation.z = lerpAngle(armR.rotation.z, -0.1 - floatWeight * 0.9, k);
       body.rotation.x = lerpAngle(body.rotation.x, runnerState.amplitude * 0.18 * (1 - airborne) - airborne * 0.2 + floatWeight * (-0.25 + Math.sin(elapsed * 0.7) * 0.15), k);
       body.rotation.z = lerpAngle(body.rotation.z, floatWeight * Math.sin(elapsed * 0.5) * 0.35, k);
+      body.position.y = -0.08 * boarding;
+      body.rotation.x *= 1 - boarding;
+      body.rotation.z *= 1 - boarding;
+      legL.rotation.x = lerpAngle(legL.rotation.x, -1.15, boarding);
+      legR.rotation.x = lerpAngle(legR.rotation.x, -1.15, boarding);
+      armL.rotation.x = lerpAngle(armL.rotation.x, -0.85, boarding);
+      armR.rotation.x = lerpAngle(armR.rotation.x, -0.85, boarding);
       helmet.visible = floatWeight > 0.02;
       helmetMaterial.opacity = 0.32 * floatWeight;
       // Only real travel counts as "moving" (drives the 60 fps budget); the idle float/bob is ambient like the clouds.
@@ -914,7 +934,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
   }, []);
 
   return <>
-    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง ฐานภูเขากว้างมีสวนผักและแปลงข้าว พร้อมชาวสวนสวมหมวกกำลังพรวนดิน มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
+    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง ฐานภูเขากว้างมีสวนผักและแปลงข้าว พร้อมชาวสวนสวมหมวกกำลังพรวนดิน มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา ตัวละครขึ้นเครื่องบินจากยอดเขา บินผ่านเมฆพร้อมนกห้าตัวไปยังเกาะลอย แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
       {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
     </div>
     {!failed && <div className="skill-overlay" aria-hidden="true">

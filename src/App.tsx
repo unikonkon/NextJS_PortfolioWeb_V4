@@ -81,7 +81,7 @@ function SceneLegend({ chapter }: { chapter: typeof chapters[number] }) {
 
 function Travel({ to }: { to: typeof chapters[number] }) {
   const index = chapters.indexOf(to);
-  return <div className="travel" aria-hidden="true"><span className="travel-line" /><span className="travel-label"><ArrowUp size={12} /> บทที่ {index + 1} · เดินทางสู่{to.label}</span><small>{['', 'ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา', 'ข้ามยอดเขา ปล่อยไอเดียให้ลอยขึ้นฟ้า', 'พ้นชั้นบรรยากาศ สู่โลกใบต่อไป'][index]}</small></div>;
+  return <div className={`travel travel-to-${to.id}`} aria-hidden="true"><span className="travel-line" /><span className="travel-label"><ArrowUp size={12} /> บทที่ {index + 1} · เดินทางสู่{to.label}</span><small>{['', 'ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา', 'ข้ามยอดเขา ปล่อยไอเดียให้ลอยขึ้นฟ้า', 'พ้นชั้นบรรยากาศ สู่โลกใบต่อไป'][index]}</small></div>;
 }
 
 function ProjectArt({ index }: { index: number }) {
