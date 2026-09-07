@@ -21,7 +21,7 @@ const chapters = [
   { id: 'ground', label: 'พื้นดิน', en: 'THE BEGINNING', altitude: '000 M', legend: [['#e8d8b4', 'กระท่อม', 'บ้านหลังเล็กที่บรรทัดแรกของโค้ดถูกเขียนขึ้น'], ['#c7ed91', 'โต๊ะทดลอง', 'รากฐานจากวิศวกรรมอิเล็กทรอนิกส์ IoT และ Arduino'], ['#d9c9a2', 'ทางเดิน', 'เส้นทางที่ทอดขึ้นสู่ภูเขาลูกแรกของสายอาชีพ']] },
   { id: 'mountain', label: 'ภูเขา', en: 'THE CLIMB', altitude: '2,400 M', legend: [['#e8c46a', 'ธงตามทาง', 'แต่ละก้าวในสายอาชีพ 2020 · 2022 · 2023'], ['#c7ed91', 'ยอดเขา', 'ธงสีเขียวคือตำแหน่งปัจจุบันที่ iApp Technology']] },
   { id: 'sky', label: 'ท้องฟ้า', en: 'THE EXPLORATION', altitude: '12,000 M', legend: [['#db9872', 'บอลลูน', 'ไอเดียที่ปล่อยให้ลอยออกไปทดลอง'], ['#fbfbf4', 'เครื่องบินกระดาษ', 'การทดลองเล็ก ๆ ที่ปล่อยออกไปดูว่าอะไรบินได้']] },
-  { id: 'space', label: 'อวกาศ', en: 'THE NEXT FRONTIER', altitude: '100 KM', legend: [['#9aab90', 'ดาวเคราะห์', 'AI & Code โลกใบใหม่ที่กำลังสำรวจ'], ['#d6926d', 'จรวด', 'พร้อมออกเดินทางสู่บทถัดไปของการทำงาน'], ['#5f7fb0', 'ดาวเทียม', 'เปิดรับสัญญาณเสมอ ทักมาคุยกันได้เลย']] },
+  { id: 'space', label: 'อวกาศ', en: 'THE NEXT FRONTIER', altitude: '100 KM', legend: [['#9aab90', 'ดาวเคราะห์', 'AI & Code โลกใบใหม่ที่กำลังสำรวจ'], ['#d6926d', 'ยานอวกาศ', 'ขึ้นยานแล้วออกเดินทางสู่บทถัดไปของการทำงาน'], ['#5f7fb0', 'ดาวเทียม', 'เปิดรับสัญญาณเสมอ ทักมาคุยกันได้เลย'], ['#c6edff', 'ดาวหาง', 'ความคิดใหม่ที่เดินทางผ่านเข้ามา']] },
 ] as const;
 const professionalProjects = workProjects;
 const filters = ['ทั้งหมด', 'AI & Full Stack', 'Web & Mobile', 'API', 'Portfolio & Design'];
@@ -81,7 +81,7 @@ function SceneLegend({ chapter }: { chapter: typeof chapters[number] }) {
 
 function Travel({ to }: { to: typeof chapters[number] }) {
   const index = chapters.indexOf(to);
-  return <div className={`travel travel-to-${to.id}`} aria-hidden="true"><span className="travel-line" /><span className="travel-label"><ArrowUp size={12} /> บทที่ {index + 1} · เดินทางสู่{to.label}</span><small>{['', 'ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา', 'ข้ามยอดเขา ปล่อยไอเดียให้ลอยขึ้นฟ้า', 'พ้นชั้นบรรยากาศ สู่โลกใบต่อไป'][index]}</small></div>;
+  return <div className={`travel travel-to-${to.id}`} aria-hidden="true"><span className="travel-line" /><span className="travel-label"><ArrowUp size={12} /> บทที่ {index + 1} · เดินทางสู่{to.label}</span><small>{['', 'ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา', 'ข้ามยอดเขา ปล่อยไอเดียให้ลอยขึ้นฟ้า', 'ขึ้นยาน พ้นชั้นบรรยากาศ สู่โลกใบต่อไป'][index]}</small></div>;
 }
 
 function ProjectArt({ index }: { index: number }) {

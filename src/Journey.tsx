@@ -4,6 +4,7 @@ import { altitudes, blend, clamp, measureProgress, mountainRadiusAt, mountainSno
 import { skillCategories } from '../data/skillCategories';
 import { createMountainFarm } from './MountainFarm';
 import { createSkyFlight, flightBoarding, flightEnd, flightStart } from './SkyFlight';
+import { createSpaceEffects, createSpaceFlight, spaceBoarding, spaceBoardingStart } from './SpaceFlight';
 
 /**
  * Journey — a single continuous low-poly world rendered once behind the page.
@@ -501,15 +502,6 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     }
     const ring = mesh(new THREE.TorusGeometry(3.1, 0.07, 6, 100), '#d6c9a9', [0, 0, 0], planet);
     ring.rotation.set(1.2, 0.3, -0.3);
-    const rocket = group([2.6, 28.4, 0.7]);
-    rocket.rotation.z = -0.35;
-    mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.5, 12), '#f3eedb', [0, 0, 0], rocket);
-    mesh(new THREE.ConeGeometry(0.42, 0.8, 12), '#d6926d', [0, 1.15, 0], rocket);
-    mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.05, 16), '#6caaa9', [0, 0.25, 0.42], rocket).rotation.x = Math.PI / 2;
-    for (const side of [-1, 1]) box([0.18, 0.65, 0.55], '#d6926d', [side * 0.5, -0.6, 0], rocket).rotation.z = side * -0.35;
-    const exhaust = mesh(new THREE.ConeGeometry(0.28, 0.9, 8), '#f3c987', [0, -1.2, 0], rocket, true);
-    exhaust.rotation.z = Math.PI;
-    float(rocket, 0.16, 0.8);
     mesh(new THREE.IcosahedronGeometry(0.5, 1), '#c0ac8f', [3.6, 24.4, -1.6]);
     const satellite = group([-3.9, 30.2, -0.8]);
     box([0.34, 0.34, 0.34], '#d8dcd0', [0, 0, 0], satellite);
@@ -525,14 +517,17 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     for (let star = 0; star < 18; star++) mesh(new THREE.OctahedronGeometry(0.035), '#e8eacf', [Math.sin(star * 1.7) * 8, 18 + (star % 4) * 0.8, -4 - (star % 3)], stage, true);
 
     stage = world;
+    const spaceEffects = createSpaceEffects(materials);
+    camera.add(spaceEffects.root);
+    scene.add(camera);
 
     /* ---------- The runner: one small figure that travels the whole journey as the visitor scrolls ---------- */
     // Route keyframes: [c, x, y, z] where c is the camera's eased progress (chapter index + travel(fraction)).
     // Keying the route to the camera's own easing keeps the runner inside the strip of scene that is visible
     // above the content cards (roughly 1–6 units above the camera target early in a travel gap, 6–11 units at
     // the end of it). Ground: cabin door → island loop. Mountain: the switchback trail, camp by camp, a little
-    // behind the point where each skill card pops in. Sky: boards a plane and flies to an island. Space: floating past
-    // the asteroid to the planet, rocket and satellite (sky and space keys are lifted with the taller mountain).
+    // behind the point where each skill card pops in. Sky: boards a plane and flies to an island. Space: walks
+    // into a capsule, then ascends past the planet with the same passenger visible in its cockpit.
     const route: [number, number, number, number][] = [
       [0, -0.1, 0.03, 2.35], [0.008, -0.62, 0.03, 2.98], [0.016, 0.75, 0.03, 2.9], [0.024, 1.0, 0.03, 1.7],
     ];
@@ -573,9 +568,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       route.push([progress, flightPoint.x, flightPoint.y, flightPoint.z]);
     }
     rest(2.02, 2.35, 3.9, 19.05 + lift, -1.8);
-    route.push([2.45, -1.6, 20.15 + lift, -1.4], [2.6, 2.6, 21.15 + lift, 0.6], [2.8, 3.6, 25.0 + lift, -1.6]);
-    rest(2.95, 3.05, -1.4, 28.3 + lift, -0.5);
-    route.push([3.12, 2.3, 30.1 + lift, 0.9], [3.17, -0.9, 30.9 + lift, 0.1], [3.2, -3.2, 31.2 + lift, -0.6]);
+    const spaceDock = route[route.length - 1];
+    const spaceFlight = createSpaceFlight(new THREE.Vector3(spaceDock[1], spaceDock[2], spaceDock[3]), new THREE.Vector3(3.7, 34.8, 1.5), materials);
+    world.add(spaceFlight.root);
+    for (const progress of [2.48, 2.6, 2.8, 3, 3.1, 3.2]) {
+      spaceFlight.sample(progress, flightPoint, flightTangent);
+      route.push([progress, flightPoint.x, flightPoint.y, flightPoint.z]);
+    }
     // Chord length per segment: resting segments (near-zero length) get no hop arc.
     const segmentLength = route.slice(1).map(([, x, y, z], index) => Math.hypot(x - route[index][1], y - route[index][2], z - route[index][3]));
     const routeCurve = new THREE.CatmullRomCurve3(route.map(([, x, y, z]) => new THREE.Vector3(x, y, z)), false, 'centripetal', 0.5);
@@ -624,10 +623,11 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       routeCurve.getPoint(t, runnerPoint);
       routeCurve.getTangent(t, runnerTangent);
       if (progress >= flightStart && progress <= flightEnd) flight.sample(progress, runnerPoint, runnerTangent);
-      const boarding = flightBoarding(progress);
-      // The same character rides in the cockpit, then steps out before the space chapter.
+      if (progress >= spaceBoardingStart) spaceFlight.sample(progress, runnerPoint, runnerTangent);
+      const capsuleBoarding = spaceBoarding(progress);
+      const boarding = Math.max(flightBoarding(progress), capsuleBoarding);
+      // The same passenger boards each vehicle; the capsule keeps them seated through space.
       const hopWeight = smooth((progress - 1.45) / 0.08) * (1 - smooth((progress - 2.35) / 0.1)) * (1 - boarding);
-      const floatWeight = smooth((progress - 2.35) / 0.15);
       const hop = segmentLength[index] > 0.2 ? Math.sin(Math.PI * local) * 0.7 * hopWeight : 0;
       const dt = Math.max(1, deltaMs) / 1000;
       const distance = runnerPoint.distanceTo(runnerState.previous);
@@ -635,33 +635,32 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       // With motion paused (reduced-motion users) the figure simply stands at its place: no run cycle, no extra frames.
       const rawSpeed = pauseRef.current ? 0 : Math.min(distance / dt, 6);
       runnerState.speed += (rawSpeed - runnerState.speed) * (pauseRef.current ? 1 : Math.min(1, dt * 12));
-      const targetAmplitude = clamp(runnerState.speed / 1.2, 0, 1) * (1 - floatWeight) * (1 - boarding);
+      const targetAmplitude = clamp(runnerState.speed / 1.2, 0, 1) * (1 - boarding);
       runnerState.amplitude += (targetAmplitude - runnerState.amplitude) * (pauseRef.current ? 1 : Math.min(1, dt * 10));
       runnerState.stride += distance * 9;
       const bob = Math.abs(Math.sin(runnerState.stride)) * 0.045 * runnerState.amplitude * (1 - hopWeight);
-      const floatBob = Math.sin(elapsed * 1.3) * 0.12 * floatWeight;
-      runner.position.set(runnerPoint.x, runnerPoint.y + hop + bob + floatBob, runnerPoint.z);
+      runner.position.set(runnerPoint.x, runnerPoint.y + hop + bob, runnerPoint.z);
       flight.update(progress, elapsed, pauseRef.current, runner.position);
+      spaceFlight.update(progress, elapsed, pauseRef.current);
       // Face along the route (yaw only), so the figure runs "forwards" around the spiral.
       runnerTangent.y = 0;
       if (runnerTangent.lengthSq() > 1e-6) {
         runnerAhead.copy(runner.position).add(runnerTangent.normalize());
         runner.lookAt(runnerAhead);
       }
-      if (boarding > 0) runner.quaternion.slerp(flight.aircraft.quaternion, boarding);
-      // Pose blending: run cycle → hop pose → weightless drift.
+      if (boarding > 0) runner.quaternion.slerp(capsuleBoarding > 0 ? spaceFlight.spacecraft.quaternion : flight.aircraft.quaternion, boarding);
+      // Pose blending: walking and hopping ease into a seated passenger pose.
       const swing = Math.sin(runnerState.stride) * runnerState.amplitude;
       const airborne = hopWeight * Math.sin(Math.PI * local);
-      const drift = Math.sin(elapsed * 1.1) * 0.25;
       const k = pauseRef.current ? 1 : Math.min(1, dt * 14);
-      legL.rotation.x = lerpAngle(legL.rotation.x, swing * 0.95 * (1 - airborne) + airborne * 0.75 + floatWeight * (-0.35 + drift * 0.3), k);
-      legR.rotation.x = lerpAngle(legR.rotation.x, -swing * 0.95 * (1 - airborne) - airborne * 0.55 + floatWeight * (0.25 - drift * 0.3), k);
-      armL.rotation.x = lerpAngle(armL.rotation.x, -swing * 0.8 * (1 - airborne) - airborne * 1.6 + floatWeight * (-0.9 + drift * 0.4), k);
-      armR.rotation.x = lerpAngle(armR.rotation.x, swing * 0.8 * (1 - airborne) - airborne * 1.6 + floatWeight * (-0.9 - drift * 0.4), k);
-      armL.rotation.z = lerpAngle(armL.rotation.z, 0.1 + floatWeight * 0.9, k);
-      armR.rotation.z = lerpAngle(armR.rotation.z, -0.1 - floatWeight * 0.9, k);
-      body.rotation.x = lerpAngle(body.rotation.x, runnerState.amplitude * 0.18 * (1 - airborne) - airborne * 0.2 + floatWeight * (-0.25 + Math.sin(elapsed * 0.7) * 0.15), k);
-      body.rotation.z = lerpAngle(body.rotation.z, floatWeight * Math.sin(elapsed * 0.5) * 0.35, k);
+      legL.rotation.x = lerpAngle(legL.rotation.x, swing * 0.95 * (1 - airborne) + airborne * 0.75, k);
+      legR.rotation.x = lerpAngle(legR.rotation.x, -swing * 0.95 * (1 - airborne) - airborne * 0.55, k);
+      armL.rotation.x = lerpAngle(armL.rotation.x, -swing * 0.8 * (1 - airborne) - airborne * 1.6, k);
+      armR.rotation.x = lerpAngle(armR.rotation.x, swing * 0.8 * (1 - airborne) - airborne * 1.6, k);
+      armL.rotation.z = lerpAngle(armL.rotation.z, 0.1, k);
+      armR.rotation.z = lerpAngle(armR.rotation.z, -0.1, k);
+      body.rotation.x = lerpAngle(body.rotation.x, runnerState.amplitude * 0.18 * (1 - airborne) - airborne * 0.2, k);
+      body.rotation.z = lerpAngle(body.rotation.z, 0, k);
       body.position.y = -0.08 * boarding;
       body.rotation.x *= 1 - boarding;
       body.rotation.z *= 1 - boarding;
@@ -669,8 +668,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       legR.rotation.x = lerpAngle(legR.rotation.x, -1.15, boarding);
       armL.rotation.x = lerpAngle(armL.rotation.x, -0.85, boarding);
       armR.rotation.x = lerpAngle(armR.rotation.x, -0.85, boarding);
-      helmet.visible = floatWeight > 0.02;
-      helmetMaterial.opacity = 0.32 * floatWeight;
+      armL.rotation.z *= 1 - capsuleBoarding;
+      armR.rotation.z *= 1 - capsuleBoarding;
+      helmet.visible = capsuleBoarding > 0.02;
+      helmetMaterial.opacity = 0.2 * capsuleBoarding;
       // Only real travel counts as "moving" (drives the 60 fps budget); the idle float/bob is ambient like the clouds.
       return distance > 1e-4 || runnerState.amplitude > 0.01;
     };
@@ -880,7 +881,6 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         planet.rotation.y = elapsed * 0.08;
         ring.rotation.z = -0.3 + elapsed * 0.05;
         satellite.rotation.y = elapsed * 0.4;
-        exhaust.scale.y = 0.85 + Math.sin(elapsed * 14) * 0.2;
         dirty = true;
       }
       if (!dirty) return;
@@ -905,6 +905,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       sun.intensity = 3.8 + sunlight * 0.6;
       hemisphere.intensity = 2.6 - 0.9 * sunlight - 1.2 * smooth((progressNow - 2.4) / 0.8);
       farm.update(elapsed, camera, pauseRef.current);
+      const spaceChapter = Math.min(3, Math.floor(runnerState.progress));
+      spaceEffects.update(spaceChapter + travel(runnerState.progress - spaceChapter), elapsed, pauseRef.current, camera, container.clientWidth);
       renderer.render(scene, camera);
       updateSkillCards();
     };
@@ -934,7 +936,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
   }, []);
 
   return <>
-    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง ฐานภูเขากว้างมีสวนผักและแปลงข้าว พร้อมชาวสวนสวมหมวกกำลังพรวนดิน มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา ตัวละครขึ้นเครื่องบินจากยอดเขา บินผ่านเมฆพร้อมนกห้าตัวไปยังเกาะลอย แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
+    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง ฐานภูเขากว้างมีสวนผักและแปลงข้าว พร้อมชาวสวนสวมหมวกกำลังพรวนดิน มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา ตัวละครขึ้นเครื่องบินจากยอดเขา บินผ่านเมฆพร้อมนกห้าตัวไปยังเกาะลอย แล้วเดินขึ้นยานอวกาศและนั่งในห้องนักบินขณะยานลอยขึ้นผ่านดาวเคราะห์ มีดาวหางตกช้า ๆ บริเวณด้านข้าง แทนการเดินทางของการเป็นโปรแกรมเมอร์">
       {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
     </div>
     {!failed && <div className="skill-overlay" aria-hidden="true">
