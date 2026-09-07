@@ -58,8 +58,8 @@ function Toolkit() {
   </section>;
 }
 
-// The TOOLKIT note closes the ground chapter, so it is read before the first skill cards pop (at 490 M on the
-// altimeter, right after the chapter ends). The skill cards on the mountain share its look.
+// The TOOLKIT note closes the ground chapter, so it is read before the first skill cards pop (at 470 M on the
+// altimeter, as the chapter ends). The skill cards on the mountain share its look.
 function ClimbNote() {
   return <div className="climb-note"><span className="eyebrow"><Code2 size={13} /> TOOLKIT</span><h3>เครื่องมือที่ใช้ทำงาน</h3><p>เลื่อนลงเพื่อไต่เขาไปพร้อมกัน ทุกจุดพักตามทางจะเปิดการ์ดทีละ 2 หมวด รวม {toolCount} รายการใน {skillCategories.length} หมวด</p></div>;
 }

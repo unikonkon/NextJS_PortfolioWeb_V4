@@ -198,12 +198,14 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     const summit: Vec = [peak[0], peak[1] + mountainHeight, peak[2]];
     // Switchback trail on the camera-facing slope: it swings left and right of the facing direction, so the whole
     // climb (runner, flags and camps) stays in view. Each skill camp sits at the outer end of a switchback,
-    // alternating left / right. Camps are read in pairs (left + right = one stop). The swing is small and the
-    // switchbacks long, so the whole trail is about half the length of the first version (≈19 vs 38 units).
+    // alternating left / right. Camps are read in pairs (left + right = one stop) and all eight sit on the lower
+    // half of the slope, because every pair is on screen by 910 M on the altimeter (see cardAltitudes). Above the
+    // camps the trail keeps zigzagging up to the summit. The swing is small, so the whole trail stays about half
+    // the length of the first version (≈19 vs 38 units).
     const facing = Math.atan2(14, 11); // camera direction on the XZ plane
-    const campBase = 1.6;
-    const campSpacing = 1.5;
-    const trailSwing = 0.35;
+    const campBase = 1.4;
+    const campSpacing = 1.15;
+    const trailSwing = 0.27;
     const radiusAt = (height: number) => mountainRadius * (1 - height / mountainHeight);
     const trailPoint = (height: number): Vec => {
       const angle = facing + trailSwing * Math.cos((Math.PI * (height - campBase)) / campSpacing);
@@ -214,10 +216,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const stone = box([0.24, 0.06, 0.24], Math.round(height / 0.2) % 2 ? '#d9c9a2' : '#e6dbbd', trailPoint(height));
       stone.rotation.y = height * 2;
     }
-    const milestones: [number, string][] = [[2.2, '#e8c46a'], [5.8, '#e2a27a'], [9.4, '#c7ed91']];
+    const milestones: [number, string][] = [[2.9, '#e8c46a'], [6.9, '#e2a27a'], [11.6, '#c7ed91']];
     milestones.forEach(([height, color]) => flag(trailPoint(height), color, 0.95));
     // Base camp tent: the pause to learn before the next push.
-    const camp = group(trailPoint(4.6));
+    const camp = group(trailPoint(10.2));
     const tent = mesh(new THREE.ConeGeometry(0.42, 0.42, 4), '#d99a6c', [0, 0.21, 0], camp);
     tent.rotation.y = Math.PI / 4;
     mesh(new THREE.OctahedronGeometry(0.07), '#ffb26b', [0.35, 0.08, 0.2], camp, true);
@@ -335,22 +337,19 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       [0, -0.1, 0.03, 2.35], [0.008, -0.62, 0.03, 2.98], [0.016, 0.75, 0.03, 2.9], [0.024, 1.0, 0.03, 1.7],
     ];
     const rest = (from: number, until: number, x: number, y: number, z: number) => route.push([from, x, y, z], [until, x + 0.02, y, z + 0.02]);
-    // Cards pop in two at a time: pair k (camps 2k and 2k+1, left + right) appears at c = pairKeys[k], driven straight
-    // by the scroll position. The first pair pops when the altimeter reads 490 M (just past the ground chapter), the
-    // last one shortly before the summit; in between the pairs are spread evenly over the scroll distance. The runner
-    // reaches each pair's first camp a moment later and its second camp right after, so the cards lead and the
-    // figure visibly catches up.
+    // Cards pop in two at a time, keyed to the altimeter: pair k (camps 2k and 2k+1, left + right) is fully visible
+    // when the altimeter reads cardAltitudes[k] metres and fades in over the 20 M before that. During the ground
+    // chapter the altimeter shows altitudes[1] × c, so c = metres / altitudes[1]. The runner then visits the camps one
+    // by one behind the cards (one camp per ≈50 M) and walks on to the summit, where it waits for the mountain chapter.
+    const cardAltitudes = [470, 600, 710, 910];
     const pairCount = Math.ceil(skillCategories.length / 2);
-    const firstCardAltitude = 490; // metres on the altimeter (ground chapter climbs 0 → 2400 M)
-    const firstCard = firstCardAltitude / altitudes[1]; // in c-space
-    // Scroll fraction at which the ground chapter's travel reaches `firstCard` (travel is monotonic: bisect).
-    let firstScroll = 0.7, hi = 1;
-    for (let step = 0; step < 24; step++) { const mid = (firstScroll + hi) / 2; if (travel(mid) < firstCard) firstScroll = mid; else hi = mid; }
-    const lastScroll = 0.92;
-    const pairKeys = Array.from({ length: pairCount }, (_, index) => travel(firstScroll + ((lastScroll - firstScroll) * index) / Math.max(1, pairCount - 1)));
-    const runnerLag = 0.03;
-    const campKey = (index: number) => pairKeys[Math.floor(index / 2)] + runnerLag + (index % 2) * 0.04;
-    const climb: [number, number][] = [[0.5, 0.03], ...skillCategories.map((_, index): [number, number] => [campBase + index * campSpacing, campKey(index)]), [mountainHeight - 0.4, 0.99]];
+    const pairKeys = Array.from({ length: pairCount }, (_, index) => cardAltitudes[Math.min(index, cardAltitudes.length - 1)] / altitudes[1]);
+    const fadeWindow = 20 / altitudes[1];
+    const runnerStep = 0.02;
+    const campKeys: number[] = [];
+    skillCategories.forEach((_, index) => campKeys.push(Math.max(pairKeys[Math.floor(index / 2)] + runnerStep, (campKeys[index - 1] ?? 0) + runnerStep)));
+    const summitKey = 0.8;
+    const climb: [number, number][] = [[0.5, 0.03], ...skillCategories.map((_, index): [number, number] => [campBase + index * campSpacing, campKeys[index]]), [mountainHeight - 0.4, summitKey]];
     const cForHeight = (height: number) => {
       for (let step = 0; step < climb.length - 1; step++) {
         const [h0, c0] = climb[step];
@@ -363,7 +362,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const point = trailPoint(height);
       route.push([cForHeight(height), point[0], point[1] + 0.06, point[2]]);
     }
-    rest(1.0, 1.45, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
+    rest(summitKey + 0.01, 1.45, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
     route.push([1.6, -2.6, 12.95 + lift, 0.8], [1.75, -3.2, 14.55 + lift, -1.0], [1.85, 1.2, 15.65 + lift, 2.2], [1.95, -0.6, 18.5 + lift, 1.2]);
     rest(2.02, 2.35, 3.9, 19.05 + lift, -1.8);
     route.push([2.45, -1.6, 20.15 + lift, -1.4], [2.6, 2.6, 21.15 + lift, 0.6], [2.8, 3.6, 25.0 + lift, -1.6]);
@@ -464,6 +463,17 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     const projected = new THREE.Vector3();
     let cardWidth = 220;
     let climbFade = '';
+    // Once a pair has been shown it stays on screen when the visitor scrolls back up through the climb: pairs above
+    // the current position sit at 40% like the older ones, and everything fades only when the visitor scrolls back
+    // into the hero itself (below keepAltitude, where the cards would sit behind the hero text). Narrow screens only
+    // have room for one pair, so there only the first pair is kept when scrolling back above its altitude.
+    const shown: boolean[] = new Array(pairCount).fill(false);
+    const keepKey = 430 / altitudes[1];
+    // Cards on one side of the mountain are laid out bottom-up like a skyline so they never overlap: a card whose
+    // camp projects into the previous card is pushed up above it, and when the viewport is too short for the stack the
+    // card moves to a second column further out (with hysteresis, so it does not hop between columns while scrolling).
+    const columnOf: number[] = new Array(skillCategories.length).fill(0);
+    const stacks = [[Infinity, Infinity], [Infinity, Infinity]]; // per side (left, right): top edge of the last card per column
     const updateSkillCards = () => {
       const width = container.clientWidth;
       const height = container.clientHeight;
@@ -472,24 +482,30 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const live = chapter + travel(progressNow - chapter);
       // Cards fade out again as the mountain chapter's own content scrolls up over them.
       const hideAll = 1 - smooth((live - 1.02) / 0.08);
-      // The climb's chapter label (App's .climb-head) fades out as the first pair pops, so nothing sits under the cards.
-      const fade = (1 - smooth((live - pairKeys[0] + 0.035) / 0.035)).toFixed(2);
+      const narrow = width < 700;
+      const keep = smooth((live - keepKey + fadeWindow) / fadeWindow);
+      stacks[0][0] = stacks[0][1] = stacks[1][0] = stacks[1][1] = Infinity;
+      // The climb's chapter label (App's .climb-head) fades out as the first pair pops (and stays out while cards are kept).
+      const fade = (1 - Math.max(smooth((live - pairKeys[0] + fadeWindow) / fadeWindow), shown[0] ? keep : 0)).toFixed(2);
       if (fade !== climbFade) { climbFade = fade; root.style.setProperty('--climb-fade', fade); }
       for (let index = 0; index < campAnchors.length; index++) {
         const node = cards.current[index];
         if (!node) continue;
         const pair = Math.floor(index / 2);
-        // Fully visible exactly at the pair's key (pair 0: the altimeter reading 490 M); the fade-in runs just before it.
-        const reveal = smooth((live - pairKeys[pair] + 0.035) / 0.035) * hideAll;
+        // Fully visible exactly at the pair's altitude; the fade-in runs over the 20 M before it.
+        const raw = smooth((live - pairKeys[pair] + fadeWindow) / fadeWindow);
+        if (raw >= 0.999) shown[pair] = true;
+        const sticky = shown[pair] && (!narrow || pair === 0);
+        const reveal = (sticky ? (narrow ? 1 : 0.4 + 0.6 * raw) * keep : raw) * hideAll;
         if (reveal <= 0.002) {
           if (node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
           continue;
         }
         // Desktop keeps the current and previous pair readable and dims older ones; narrow screens show one pair at a time.
-        const narrow = width < 700;
         const later = pairKeys[pair + (narrow ? 1 : 2)];
-        // Narrow screens swap pairs: the old one is mostly gone before the next has faded in, so they never stack.
-        const dim = later === undefined ? 1 : 1 - (narrow ? smooth((live - later + 0.045) / 0.03) : 0.6 * smooth((live - later + 0.01) / 0.035));
+        // Narrow screens cross-fade pairs: the old pair fades out exactly while the next fades in, so they never stack
+        // (pairs only a few tens of metres apart hand over almost immediately).
+        const dim = later === undefined ? 1 : 1 - (narrow ? smooth((live - later + fadeWindow) / fadeWindow) : 0.6 * smooth((live - later + fadeWindow * 0.3) / fadeWindow));
         if (reveal * dim <= 0.002) {
           if (node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
           continue;
@@ -499,10 +515,22 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const gap = 14;
         let x = ((projected.x + 1) / 2) * width;
         x = side < 0 ? Math.max(x, cardWidth + gap + 8) : Math.min(x, width - cardWidth - gap - 8);
-        const y = Math.max(((1 - projected.y) / 2) * height - 6, node.offsetHeight + 8);
+        const desired = ((1 - projected.y) / 2) * height - 6;
+        const cardHeight = node.offsetHeight;
+        const stack = stacks[side < 0 ? 0 : 1];
+        const fits = (column: number, margin: number) => Math.min(desired, stack[column] - gap) - cardHeight >= 8 + margin;
+        const outerX = x + side * (cardWidth + gap);
+        const outerRoom = side < 0 ? outerX - cardWidth - gap >= 8 : outerX + cardWidth + gap <= width - 8;
+        let column = columnOf[index];
+        if (column === 1 && (!outerRoom || fits(0, 40))) column = 0;
+        if (column === 0 && !fits(0, 0) && outerRoom && fits(1, 0)) column = 1;
+        columnOf[index] = column;
+        const y = Math.max(Math.min(desired, stack[column] - gap), cardHeight + 8);
+        stack[column] = y - cardHeight;
+        const cx = column === 1 ? outerX : x;
         node.style.visibility = 'visible';
         node.style.opacity = (reveal * dim).toFixed(3);
-        node.style.transform = `translate3d(${(x + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * reveal).toFixed(3)})`;
+        node.style.transform = `translate3d(${(cx + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * reveal).toFixed(3)})`;
       }
     };
 
