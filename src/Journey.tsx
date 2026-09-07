@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { blend, clamp, measureProgress, smooth, travel } from './journeyMath';
+import { altitudes, blend, clamp, measureProgress, smooth, travel } from './journeyMath';
+import { skillCategories } from '../data/skillCategories';
 
 /**
  * Journey — a single continuous low-poly world rendered once behind the page.
@@ -14,12 +15,14 @@ import { blend, clamp, measureProgress, smooth, travel } from './journeyMath';
 // Each station sits ~7 units below its chapter's landmark: the strip of scene that stays visible above the
 // content cards is 6–11 units above the camera target, so the summit, the floating islands and the planet
 // are on screen exactly as their chapter opens.
+// The mountain is 14 units tall; the sky and space chapters sit `lift` units higher than they would above a 10-unit peak.
+const lift = 4;
 const stations = [
   new THREE.Vector3(0.2, -0.2, 0.3),
-  new THREE.Vector3(-0.6, 2.2, -1.6),
-  new THREE.Vector3(0.9, 8.5, 0),
-  new THREE.Vector3(0.4, 20.5, 0),
-  new THREE.Vector3(0.4, 24.5, 0),
+  new THREE.Vector3(-0.8, 6.2, -2),
+  new THREE.Vector3(0.9, 8.5 + lift, 0),
+  new THREE.Vector3(0.4, 20.5 + lift, 0),
+  new THREE.Vector3(0.4, 24.5 + lift, 0),
 ];
 // Backdrop colours for each chapter (light → deep space).
 const palette = ['#f4f1e4', '#e2e8dd', '#cfe1ef', '#101a2d', '#070b17'].map(hex => new THREE.Color(hex));
@@ -34,15 +37,21 @@ interface JourneyProps {
   paused: boolean;
   onChapter: (index: number) => void;
   onProgress?: (progress: number) => void;
+  /** Called once if WebGL is unavailable, so the page can show the skill cards as a plain grid instead. */
+  onFallback?: () => void;
 }
 
-export default function Journey({ paused, onChapter, onProgress }: JourneyProps) {
+export default function Journey({ paused, onChapter, onProgress, onFallback }: JourneyProps) {
   const host = useRef<HTMLDivElement>(null);
+  const cards = useRef<(HTMLDivElement | null)[]>([]);
   const pauseRef = useRef(paused);
   const chapterRef = useRef(onChapter);
   const progressRef = useRef(onProgress);
+  const fallbackRef = useRef(onFallback);
   const [failed, setFailed] = useState(false);
   useEffect(() => { pauseRef.current = paused; }, [paused]);
+  useEffect(() => { fallbackRef.current = onFallback; }, [onFallback]);
+  useEffect(() => { if (failed) fallbackRef.current?.(); }, [failed]);
   useEffect(() => { chapterRef.current = onChapter; progressRef.current = onProgress; }, [onChapter, onProgress]);
 
   useEffect(() => {
@@ -83,7 +92,9 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       return materials.get(key)!;
     };
     type Vec = [number, number, number];
-    function mesh(geometry: THREE.BufferGeometry, color: string, position: Vec, parent: THREE.Object3D = world, glow = false) {
+    // Default parent for new objects: `world` for the ground and mountain, then the lifted `upper` group for sky and space.
+    let stage: THREE.Object3D = world;
+    function mesh(geometry: THREE.BufferGeometry, color: string, position: Vec, parent: THREE.Object3D = stage, glow = false) {
       const object = new THREE.Mesh(geometry, material(color, glow));
       object.position.set(...position);
       object.castShadow = !glow;
@@ -91,22 +102,22 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       parent.add(object);
       return object;
     }
-    const box = (size: Vec, color: string, position: Vec, parent: THREE.Object3D = world) => mesh(new THREE.BoxGeometry(...size), color, position, parent);
-    function group(position: Vec, parent: THREE.Object3D = world, scale = 1) {
+    const box = (size: Vec, color: string, position: Vec, parent: THREE.Object3D = stage) => mesh(new THREE.BoxGeometry(...size), color, position, parent);
+    function group(position: Vec, parent: THREE.Object3D = stage, scale = 1) {
       const item = new THREE.Group();
       item.position.set(...position);
       item.scale.setScalar(scale);
       parent.add(item);
       return item;
     }
-    function tree(position: Vec, scale = 1, parent: THREE.Object3D = world) {
+    function tree(position: Vec, scale = 1, parent: THREE.Object3D = stage) {
       const item = group(position, parent, scale);
       mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.7, 6), '#75604a', [0, 0.3, 0], item);
       for (let layer = 0; layer < 3; layer++) mesh(new THREE.ConeGeometry(0.62 - layer * 0.13, 1.05, 7), ['#426747', '#547955', '#6c8c60'][layer], [0, 0.8 + layer * 0.38, 0], item);
     }
     const clouds: { group: THREE.Group; base: number; speed: number }[] = [];
     function cloud(position: Vec, scale = 1, speed = 1) {
-      const item = group(position, world, scale);
+      const item = group(position, stage, scale);
       for (let piece = 0; piece < 5; piece++) {
         const puff = mesh(new THREE.IcosahedronGeometry(0.6, 2), '#ffffff', [(piece - 2) * 0.48, Math.sin(piece * 2) * 0.17, Math.cos(piece) * 0.12], item);
         puff.scale.y = 0.65 + (piece % 2) * 0.4;
@@ -114,7 +125,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       }
       clouds.push({ group: item, base: position[0], speed });
     }
-    function flag(position: Vec, color: string, height = 0.9, parent: THREE.Object3D = world) {
+    function flag(position: Vec, color: string, height = 0.9, parent: THREE.Object3D = stage) {
       const item = group(position, parent);
       box([0.05, height, 0.05], '#5e655d', [0, height / 2, 0], item);
       const banner = box([0.5, 0.28, 0.03], color, [0.26, height - 0.16, 0], item);
@@ -135,7 +146,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     river.rotation.y = -0.18;
     box([0.75, 3.4, 0.12], '#a3d8d9', [1.1, -1.68, 3.02]);
     for (let stream = 0; stream < 4; stream++) box([0.04, 2.8 - stream * 0.23, 0.03], '#d9efdf', [0.85 + stream * 0.15, -1.55, 3.1]);
-    ([[-2.9, 0, 1.2], [-3.2, 0, 0.1], [-2.3, 0, 2.3], [2.6, 0, -0.9], [3.1, 0, 0.3], [2.7, 0, 1.9], [2.2, 0, 2.9], [-1.1, 0, 3]] as Vec[]).forEach((position, index) => tree(position, 0.6 + (index % 3) * 0.16));
+    ([[-2.9, 0, 1.2], [-3.7, 0, 0.9], [-2.3, 0, 2.3], [2.6, 0, -0.9], [3.1, 0, 0.3], [2.7, 0, 1.9], [2.2, 0, 2.9], [-1.1, 0, 3]] as Vec[]).forEach((position, index) => tree(position, 0.6 + (index % 3) * 0.16));
     // The cabin: where curiosity started. A warm window glows so it reads as "home" from far away.
     const cabin = group([-0.1, 0.02, 1.3]);
     box([1.25, 0.95, 1], '#e8d8b4', [0, 0.48, 0], cabin);
@@ -165,7 +176,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     box([0.42, 0.16, 0.04], '#c7ed91', [-0.12, 0.76, 0], signpost).rotation.z = -0.1;
     // Lantern by the door.
     box([0.05, 0.8, 0.05], '#5e655d', [0.85, 0.4, 1.95]);
-    mesh(new THREE.OctahedronGeometry(0.11), '#ffd98a', [0.85, 0.88, 1.95], world, true);
+    mesh(new THREE.OctahedronGeometry(0.11), '#ffd98a', [0.85, 0.88, 1.95], stage, true);
     for (let rock = 0; rock < 9; rock++) {
       const angle = rock * 2.39;
       const stone = mesh(new THREE.DodecahedronGeometry(0.2 + (rock % 3) * 0.07), '#a0aa91', [Math.cos(angle) * 3.5, 0.1, Math.sin(angle) * 3.3]);
@@ -174,42 +185,65 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     cloud([-4.8, -2.4, 1.6], 0.7, 0.6);
     cloud([4.6, -1.6, 2.6], 0.6, 0.8);
 
-    /* ---------- Chapter 2 · Mountain: the climb through each role, one flag per milestone ---------- */
-    const peak: Vec = [-0.6, -0.4, -1.6];
-    const mountainHeight = 10;
-    const mountainRadius = 2.7;
+    /* ---------- Chapter 2 · Mountain: the climb, with one camp per skill category along a switchback trail ---------- */
+    // The peak sits towards the back of the island so the wider foot of the taller mountain clears the cabin.
+    const peak: Vec = [-0.9, -0.4, -2.1];
+    const mountainHeight = 14; // 40% taller than the first version: room for one camp (and its card) per skill category
+    const mountainRadius = 3.5;
     mesh(new THREE.ConeGeometry(mountainRadius, mountainHeight, 6), '#7b8b73', [peak[0], peak[1] + mountainHeight / 2, peak[2]]);
-    mesh(new THREE.ConeGeometry(1.6, 4.2, 5), '#97a48a', [-2.6, 1.7, -0.4]);
-    mesh(new THREE.ConeGeometry(1.25, 3.4, 5), '#8e9c83', [1.6, 1.3, -2.6]);
-    mesh(new THREE.ConeGeometry(0.5, 1.2, 5), '#e2e9d5', [-2.6, 3.4, -0.4]);
-    mesh(new THREE.ConeGeometry(0.85, 2.9, 6), '#edf0df', [peak[0], peak[1] + mountainHeight - 1.45, peak[2]]);
+    mesh(new THREE.ConeGeometry(1.8, 5.2, 5), '#97a48a', [-3.4, 2.1, -0.4]);
+    mesh(new THREE.ConeGeometry(1.2, 3.8, 5), '#8e9c83', [2.0, 1.4, -3.0]);
+    mesh(new THREE.ConeGeometry(0.55, 1.4, 5), '#e2e9d5', [-3.4, 4.2, -0.4]);
+    mesh(new THREE.ConeGeometry(1.1, 3.8, 6), '#edf0df', [peak[0], peak[1] + mountainHeight - 1.9, peak[2]]);
     const summit: Vec = [peak[0], peak[1] + mountainHeight, peak[2]];
-    // Winding trail: stepping stones spiralling up the slope.
+    // Switchback trail on the camera-facing slope: it swings left and right of the facing direction, so the whole
+    // climb (runner, flags and camps) stays in view. Each skill camp sits at the outer end of a switchback,
+    // alternating left / right. Camps are read in pairs (left + right = one stop). The swing is small and the
+    // switchbacks long, so the whole trail is about half the length of the first version (≈19 vs 38 units).
+    const facing = Math.atan2(14, 11); // camera direction on the XZ plane
+    const campBase = 1.6;
+    const campSpacing = 1.5;
+    const trailSwing = 0.35;
     const radiusAt = (height: number) => mountainRadius * (1 - height / mountainHeight);
     const trailPoint = (height: number): Vec => {
-      const angle = 0.9 + height * 0.62;
+      const angle = facing + trailSwing * Math.cos((Math.PI * (height - campBase)) / campSpacing);
       const radius = radiusAt(height) + 0.06;
       return [peak[0] + Math.cos(angle) * radius, peak[1] + height, peak[2] + Math.sin(angle) * radius];
     };
-    for (let height = 0.5; height < mountainHeight - 1; height += 0.22) {
-      const stone = box([0.26, 0.06, 0.26], height % 0.44 < 0.22 ? '#d9c9a2' : '#e6dbbd', trailPoint(height));
-      stone.rotation.y = height;
+    for (let height = 0.5; height < mountainHeight - 1; height += 0.2) {
+      const stone = box([0.24, 0.06, 0.24], Math.round(height / 0.2) % 2 ? '#d9c9a2' : '#e6dbbd', trailPoint(height));
+      stone.rotation.y = height * 2;
     }
-    const milestones: [number, string][] = [[2.5, '#e8c46a'], [5.1, '#e2a27a'], [7.6, '#c7ed91']];
+    const milestones: [number, string][] = [[2.2, '#e8c46a'], [5.8, '#e2a27a'], [9.4, '#c7ed91']];
     milestones.forEach(([height, color]) => flag(trailPoint(height), color, 0.95));
     // Base camp tent: the pause to learn before the next push.
-    const camp = group(trailPoint(4.1));
+    const camp = group(trailPoint(4.6));
     const tent = mesh(new THREE.ConeGeometry(0.42, 0.42, 4), '#d99a6c', [0, 0.21, 0], camp);
     tent.rotation.y = Math.PI / 4;
     mesh(new THREE.OctahedronGeometry(0.07), '#ffb26b', [0.35, 0.08, 0.2], camp, true);
+    // Skill camps: a ledge and a signpost per category from data/skillCategories.ts. Their world positions are
+    // projected every rendered frame to place the HTML skill cards (see updateSkillCards below).
+    const campColors = ['#e8c46a', '#e2a27a', '#6caaa9', '#c7ed91', '#f9cd75', '#db9872', '#9fb8e8', '#e26d5a'];
+    const campAnchors = skillCategories.map((_, index) => {
+      const point = trailPoint(campBase + index * campSpacing);
+      const ledge = group(point);
+      mesh(new THREE.CylinderGeometry(0.36, 0.3, 0.1, 7), '#d9c9a2', [0, 0.03, 0], ledge);
+      box([0.045, 0.62, 0.045], '#75604a', [0.14, 0.36, 0.06], ledge);
+      box([0.36, 0.2, 0.035], campColors[index % campColors.length], [0.14, 0.6, 0.06], ledge);
+      mesh(new THREE.OctahedronGeometry(0.06), '#fff6d6', [0.14, 0.78, 0.06], ledge, true);
+      return new THREE.Vector3(point[0] + 0.14, point[1] + 0.9, point[2] + 0.06);
+    });
     // Summit flag: the current chapter, planted at the top.
     flag(summit, '#c7ed91', 1.15);
-    cloud([-4.4, 4.6, -0.6], 0.75, 0.7);
-    cloud([3.6, 6.6, -2.4], 0.65, 0.9);
-    cloud([-2.6, 9.2, 1.4], 0.55, 1.1);
+    cloud([-4.6, 6.4, -0.6], 0.75, 0.7);
+    cloud([3.8, 9.2, -2.4], 0.65, 0.9);
+    cloud([-2.8, 12.6, 1.6], 0.55, 1.1);
+    // Everything above the mountain lives in a group lifted by `lift`, so the sky and space keep their layout.
+    const upper = group([0, lift, 0], world);
+    stage = upper;
 
     /* ---------- Chapter 3 · Sky: experiments let loose above the clouds ---------- */
-    const balloon = group([1.6, 16, 0.5], world, 0.85);
+    const balloon = group([1.6, 16, 0.5], stage, 0.85);
     const envelope = mesh(new THREE.SphereGeometry(2, 12, 10), '#db9872', [0, 2.2, 0], balloon);
     envelope.scale.y = 1.15;
     mesh(new THREE.ConeGeometry(1.55, 1.8, 12), '#edc999', [0, 0.8, 0], balloon).rotation.z = Math.PI;
@@ -221,7 +255,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     float(balloon, 0.22, 0);
     // Floating islands: ideas that became real projects.
     function floatingIsland(position: Vec, scale: number, phase: number) {
-      const item = group(position, world, scale);
+      const item = group(position, stage, scale);
       mesh(new THREE.CylinderGeometry(1, 0.55, 0.7, 7), '#777260', [0, -0.35, 0], item);
       mesh(new THREE.ConeGeometry(0.55, 0.9, 6), '#626859', [0, -1.1, 0], item).rotation.z = Math.PI;
       mesh(new THREE.CylinderGeometry(1.02, 0.95, 0.18, 7), '#a4b780', [0, 0.02, 0], item);
@@ -284,22 +318,39 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     for (let star = 0; star < 90; star++) {
       const seed = star * 2.399;
       const bright = star % 7 === 0;
-      mesh(new THREE.OctahedronGeometry(bright ? 0.09 : 0.04), bright ? '#fff6d6' : '#e8eacf', [Math.sin(seed) * 8.5, 21 + ((star * 0.911) % 15), -3.5 - ((star * 0.37) % 3)], world, true);
+      mesh(new THREE.OctahedronGeometry(bright ? 0.09 : 0.04), bright ? '#fff6d6' : '#e8eacf', [Math.sin(seed) * 8.5, 21 + ((star * 0.911) % 15), -3.5 - ((star * 0.37) % 3)], stage, true);
     }
-    for (let star = 0; star < 18; star++) mesh(new THREE.OctahedronGeometry(0.035), '#e8eacf', [Math.sin(star * 1.7) * 8, 18 + (star % 4) * 0.8, -4 - (star % 3)], world, true);
+    for (let star = 0; star < 18; star++) mesh(new THREE.OctahedronGeometry(0.035), '#e8eacf', [Math.sin(star * 1.7) * 8, 18 + (star % 4) * 0.8, -4 - (star % 3)], stage, true);
+
+    stage = world;
 
     /* ---------- The runner: one small figure that travels the whole journey as the visitor scrolls ---------- */
     // Route keyframes: [c, x, y, z] where c is the camera's eased progress (chapter index + travel(fraction)).
     // Keying the route to the camera's own easing keeps the runner inside the strip of scene that is visible
     // above the content cards (roughly 1–6 units above the camera target early in a travel gap, 6–11 units at
-    // the end of it). Ground: cabin door → island loop. Mountain: the spiral trail — its back half is hidden
-    // behind the peak, so that stretch is crossed quickly and the visible upper trail is climbed slowly.
-    // Sky: hops between clouds and islands. Space: floating past the asteroid to the planet, rocket and satellite.
+    // the end of it). Ground: cabin door → island loop. Mountain: the switchback trail, camp by camp, a little
+    // behind the point where each skill card pops in. Sky: hops between clouds and islands. Space: floating past
+    // the asteroid to the planet, rocket and satellite (sky and space keys are lifted with the taller mountain).
     const route: [number, number, number, number][] = [
       [0, -0.1, 0.03, 2.35], [0.008, -0.62, 0.03, 2.98], [0.016, 0.75, 0.03, 2.9], [0.024, 1.0, 0.03, 1.7],
     ];
     const rest = (from: number, until: number, x: number, y: number, z: number) => route.push([from, x, y, z], [until, x + 0.02, y, z + 0.02]);
-    const climb: [number, number][] = [[0.5, 0.03], [2.5, 0.07], [7.6, 0.12], [8.2, 0.3], [9, 0.55], [9.5, 0.72]];
+    // Cards pop in two at a time: pair k (camps 2k and 2k+1, left + right) appears at c = pairKeys[k], driven straight
+    // by the scroll position. The first pair pops when the altimeter reads 490 M (just past the ground chapter), the
+    // last one shortly before the summit; in between the pairs are spread evenly over the scroll distance. The runner
+    // reaches each pair's first camp a moment later and its second camp right after, so the cards lead and the
+    // figure visibly catches up.
+    const pairCount = Math.ceil(skillCategories.length / 2);
+    const firstCardAltitude = 490; // metres on the altimeter (ground chapter climbs 0 → 2400 M)
+    const firstCard = firstCardAltitude / altitudes[1]; // in c-space
+    // Scroll fraction at which the ground chapter's travel reaches `firstCard` (travel is monotonic: bisect).
+    let firstScroll = 0.7, hi = 1;
+    for (let step = 0; step < 24; step++) { const mid = (firstScroll + hi) / 2; if (travel(mid) < firstCard) firstScroll = mid; else hi = mid; }
+    const lastScroll = 0.92;
+    const pairKeys = Array.from({ length: pairCount }, (_, index) => travel(firstScroll + ((lastScroll - firstScroll) * index) / Math.max(1, pairCount - 1)));
+    const runnerLag = 0.03;
+    const campKey = (index: number) => pairKeys[Math.floor(index / 2)] + runnerLag + (index % 2) * 0.04;
+    const climb: [number, number][] = [[0.5, 0.03], ...skillCategories.map((_, index): [number, number] => [campBase + index * campSpacing, campKey(index)]), [mountainHeight - 0.4, 0.99]];
     const cForHeight = (height: number) => {
       for (let step = 0; step < climb.length - 1; step++) {
         const [h0, c0] = climb[step];
@@ -308,16 +359,16 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       }
       return climb[climb.length - 1][1];
     };
-    for (let height = 0.5; height <= 9.5; height += 0.5) {
+    for (let height = 0.5; height <= mountainHeight - 0.5; height += 0.25) {
       const point = trailPoint(height);
       route.push([cForHeight(height), point[0], point[1] + 0.06, point[2]]);
     }
-    rest(0.8, 1.45, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
-    route.push([1.6, -2.6, 12.95, 0.8], [1.75, -3.2, 14.55, -1.0], [1.85, 1.2, 15.65, 2.2], [1.95, -0.6, 18.5, 1.2]);
-    rest(2.02, 2.35, 3.9, 19.05, -1.8);
-    route.push([2.45, -1.6, 20.15, -1.4], [2.6, 2.6, 21.15, 0.6], [2.8, 3.6, 25.0, -1.6]);
-    rest(2.95, 3.05, -1.4, 28.3, -0.5);
-    route.push([3.12, 2.3, 30.1, 0.9], [3.17, -0.9, 30.9, 0.1], [3.2, -3.2, 31.2, -0.6]);
+    rest(1.0, 1.45, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
+    route.push([1.6, -2.6, 12.95 + lift, 0.8], [1.75, -3.2, 14.55 + lift, -1.0], [1.85, 1.2, 15.65 + lift, 2.2], [1.95, -0.6, 18.5 + lift, 1.2]);
+    rest(2.02, 2.35, 3.9, 19.05 + lift, -1.8);
+    route.push([2.45, -1.6, 20.15 + lift, -1.4], [2.6, 2.6, 21.15 + lift, 0.6], [2.8, 3.6, 25.0 + lift, -1.6]);
+    rest(2.95, 3.05, -1.4, 28.3 + lift, -0.5);
+    route.push([3.12, 2.3, 30.1 + lift, 0.9], [3.17, -0.9, 30.9 + lift, 0.1], [3.2, -3.2, 31.2 + lift, -0.6]);
     // Chord length per segment: resting segments (near-zero length) get no hop arc.
     const segmentLength = route.slice(1).map(([, x, y, z], index) => Math.hypot(x - route[index][1], y - route[index][2], z - route[index][3]));
     const routeCurve = new THREE.CatmullRomCurve3(route.map(([, x, y, z]) => new THREE.Vector3(x, y, z)), false, 'centripetal', 0.5);
@@ -406,6 +457,55 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       return distance > 1e-4 || runnerState.amplitude > 0.01;
     };
 
+    // HTML skill cards anchored to the camps. Runs only on rendered frames; writes transform/opacity straight to
+    // the DOM (no React work), so the cards track the 3D scene without lag and cost almost nothing.
+    // Visibility follows the scroll position itself (no time easing), so a card is on screen the moment the
+    // visitor scrolls past its camp; only its position eases along with the camera.
+    const projected = new THREE.Vector3();
+    let cardWidth = 220;
+    let climbFade = '';
+    const updateSkillCards = () => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if (!width || !height) return;
+      const chapter = Math.min(3, Math.floor(progressNow));
+      const live = chapter + travel(progressNow - chapter);
+      // Cards fade out again as the mountain chapter's own content scrolls up over them.
+      const hideAll = 1 - smooth((live - 1.02) / 0.08);
+      // The climb's chapter label (App's .climb-head) fades out as the first pair pops, so nothing sits under the cards.
+      const fade = (1 - smooth((live - pairKeys[0] + 0.035) / 0.035)).toFixed(2);
+      if (fade !== climbFade) { climbFade = fade; root.style.setProperty('--climb-fade', fade); }
+      for (let index = 0; index < campAnchors.length; index++) {
+        const node = cards.current[index];
+        if (!node) continue;
+        const pair = Math.floor(index / 2);
+        // Fully visible exactly at the pair's key (pair 0: the altimeter reading 490 M); the fade-in runs just before it.
+        const reveal = smooth((live - pairKeys[pair] + 0.035) / 0.035) * hideAll;
+        if (reveal <= 0.002) {
+          if (node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
+          continue;
+        }
+        // Desktop keeps the current and previous pair readable and dims older ones; narrow screens show one pair at a time.
+        const narrow = width < 700;
+        const later = pairKeys[pair + (narrow ? 1 : 2)];
+        // Narrow screens swap pairs: the old one is mostly gone before the next has faded in, so they never stack.
+        const dim = later === undefined ? 1 : 1 - (narrow ? smooth((live - later + 0.045) / 0.03) : 0.6 * smooth((live - later + 0.01) / 0.035));
+        if (reveal * dim <= 0.002) {
+          if (node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
+          continue;
+        }
+        projected.copy(campAnchors[index]).applyMatrix4(world.matrixWorld).project(camera);
+        const side = index % 2 === 0 ? -1 : 1;
+        const gap = 14;
+        let x = ((projected.x + 1) / 2) * width;
+        x = side < 0 ? Math.max(x, cardWidth + gap + 8) : Math.min(x, width - cardWidth - gap - 8);
+        const y = Math.max(((1 - projected.y) / 2) * height - 6, node.offsetHeight + 8);
+        node.style.visibility = 'visible';
+        node.style.opacity = (reveal * dim).toFixed(3);
+        node.style.transform = `translate3d(${(x + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * reveal).toFixed(3)})`;
+      }
+    };
+
     /* ---------- Interaction & frame loop ---------- */
     const pointer = { x: 0, y: 0 };
     const move = (event: PointerEvent) => {
@@ -432,6 +532,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       camera.bottom = -vertical * .4;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
+      cardWidth = Math.min(236, Math.round(width * 0.44)); // two cards (left + right) fit side by side on a 360px phone
       dirty = true;
     };
     window.addEventListener('resize', resize);
@@ -516,6 +617,7 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
       sun.position.set(target.x - 5, target.y + 12, target.z + 7);
       sun.target.position.copy(target);
       renderer.render(scene, camera);
+      updateSkillCards();
     };
     resize();
     updateRunner(0, 16);
@@ -535,7 +637,16 @@ export default function Journey({ paused, onChapter, onProgress }: JourneyProps)
     };
   }, []);
 
-  return <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาที่มีธงตามทาง กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
-    {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
-  </div>;
+  return <>
+    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด กระโดดข้ามเมฆและเกาะลอยบนท้องฟ้า แล้วลอยตัวสู่ดาวเคราะห์และจรวดในอวกาศ แทนการเดินทางของการเป็นโปรแกรมเมอร์">
+      {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
+    </div>
+    {!failed && <div className="skill-overlay" aria-hidden="true">
+      {skillCategories.map((item, index) => <div key={item.name} ref={element => { cards.current[index] = element; }} className="skill-card" style={{ zIndex: 10 + index }}>
+        <span className="eyebrow"><span className="group-icon">{item.icon}</span>{item.path} · {item.skills.length}</span>
+        <h3>{item.name}</h3>
+        <ul className="skill-chips">{item.skills.map(skill => <li key={skill}>{skill}</li>)}</ul>
+      </div>)}
+    </div>}
+  </>;
 }

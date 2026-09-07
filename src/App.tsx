@@ -58,6 +58,23 @@ function Toolkit() {
   </section>;
 }
 
+// The TOOLKIT note closes the ground chapter, so it is read before the first skill cards pop (at 490 M on the
+// altimeter, right after the chapter ends). The skill cards on the mountain share its look.
+function ClimbNote() {
+  return <div className="climb-note"><span className="eyebrow"><Code2 size={13} /> TOOLKIT</span><h3>เครื่องมือที่ใช้ทำงาน</h3><p>เลื่อนลงเพื่อไต่เขาไปพร้อมกัน ทุกจุดพักตามทางจะเปิดการ์ดทีละ 2 หมวด รวม {toolCount} รายการใน {skillCategories.length} หมวด</p></div>;
+}
+
+// The climb: a tall, uncovered stretch between the ground and mountain chapters where the 3D scene fills the
+// viewport and the skill cards appear two at a time (one pair of camps per stop) as the visitor scrolls, with the
+// runner climbing after them (rendered by Journey; the chapter label fades out as the first pair pops). Without WebGL
+// the cards fall back to the plain Toolkit grid; otherwise a visually-hidden list keeps the skills readable by assistive tech.
+function Climb({ fallback }: { fallback: boolean }) {
+  return <div className="travel climb" id="toolkit">
+    <div className="climb-head" aria-hidden="true"><span className="travel-line" /><span className="travel-label"><ArrowUp size={12} /> บทที่ 2 · เดินทางสู่ภูเขา</span><small>ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา</small></div>
+    {fallback ? <Toolkit /> : <ul className="sr-only">{skillCategories.map(item => <li key={item.name}>{item.name}: {item.skills.join(', ')}</li>)}</ul>}
+  </div>;
+}
+
 function SceneLegend({ chapter }: { chapter: typeof chapters[number] }) {
   return <ul className="scene-legend" aria-label={`สิ่งที่อยู่ในฉาก${chapter.label}`}>{chapter.legend.map(([color, name, meaning]) => <li key={name}><span className="legend-swatch" style={{ background: color }} aria-hidden="true" /><strong>{name}</strong><span>{meaning}</span></li>)}</ul>;
 }
@@ -142,6 +159,8 @@ export default function App() {
   const [allWork, setAllWork] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [copied, setCopied] = useState(false);
+  const [fallback, setFallback] = useState(false);
+  const onFallback = useCallback(() => setFallback(true), []);
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const altimeter = useRef<HTMLSpanElement>(null);
   const currentChapter = chapters.find(chapter => chapter.id === active)!;
@@ -173,7 +192,7 @@ export default function App() {
   return <div className={`app ${paused ? 'motion-paused' : ''}`} data-chapter={active}>
     <a className="skip-link" href="#main">ข้ามไปเนื้อหา</a>
     <div className="journey-backdrop" aria-hidden="true" />
-    <Suspense fallback={<div className="journey-stage scene-loading" aria-hidden="true">กำลังสร้างโลกเล็ก ๆ ...</div>}><Journey paused={paused} onChapter={onChapter} onProgress={onProgress} /></Suspense>
+    <Suspense fallback={<div className="journey-stage scene-loading" aria-hidden="true">กำลังสร้างโลกเล็ก ๆ ...</div>}><Journey paused={paused} onChapter={onChapter} onProgress={onProgress} onFallback={onFallback} /></Suspense>
 
     <header className="site-header"><a className="brand" href="#ground" aria-label="Suthep กลับจุดเริ่มต้น"><span className="brand-icon"><Mountain size={21} strokeWidth={1.7} /></span>suthep<span className="brand-period">.</span></a><nav className={menuOpen ? 'main-nav open' : 'main-nav'} aria-label="เมนูหลัก"><a href="#ground" onClick={() => setMenuOpen(false)}>จุดเริ่มต้น</a><a href="#mountain" onClick={() => setMenuOpen(false)}>เส้นทางของผม</a><a href="#sky" onClick={() => setMenuOpen(false)}>ผลงาน <span>{projects.length.toString().padStart(2, '0')}</span></a><a href="#space" onClick={() => setMenuOpen(false)}>ติดต่อ</a></nav><a className="header-contact" href="mailto:bananammm0001@gmail.com">Let’s talk <ArrowUpRight size={16} /></a><button className="menu-toggle icon-button" aria-label={menuOpen ? 'ปิดเมนู' : 'เปิดเมนู'} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button></header>
 
@@ -203,10 +222,10 @@ export default function App() {
           <p className="journey-summary">เลื่อนลงเพื่อรู้จักผม ผ่านประสบการณ์ทำงาน ผลงานที่ทดลองสร้าง และเป้าหมายในก้าวต่อไป</p>
           <div className="hero-facts"><div className="hero-stat"><strong>4+</strong><span>ปีของประสบการณ์<br />พัฒนาซอฟต์แวร์</span></div><div className="hero-stat"><strong>{projects.length}</strong><span>โปรเจกต์ส่วนตัว<br />ที่ได้ลงมือสร้าง</span></div><div className="hero-social"><a href="https://github.com/unikonkon" target="_blank" rel="noreferrer" aria-label="GitHub"><Github size={18} /> GitHub</a><a href="https://www.linkedin.com/in/suthep-jantawee" target="_blank" rel="noreferrer" aria-label="LinkedIn"><Linkedin size={18} /> LinkedIn</a></div></div>
         </div>
-        <Toolkit />
+        <ClimbNote />
       </section>
 
-      <Travel to={chapters[1]} />
+      <Climb fallback={fallback} />
 
       <section id="mountain" className="mountain-section chapter section-padding"><div className="chapter-content"><div className="chapter-heading"><span className="eyebrow">02 / ภูเขา · ประสบการณ์ทำงาน</span><span className="altitude">เรียนรู้จากความท้าทาย</span></div><div className="story-layout"><div><h2>เติบโตจากการแก้ปัญหา<br /><span className="chapter-subtitle">ทีละโปรเจกต์ ทีละก้าว</span></h2><p className="section-description">เหมือนการเดินขึ้นภูเขา งานแต่ละชิ้นทำให้ผมได้ฝึกทักษะใหม่ จากการสร้างหน้าจอที่ใช้งานง่าย ไปจนถึงการออกแบบ API ฐานข้อมูล และระบบที่ทำงานร่วมกันได้</p><div className="timeline"><article><span className="timeline-year"><span className="flag-mark" style={{ background: '#e8c46a' }} aria-hidden="true" />2015 — 2020</span><h3>เริ่มต้นจากความเข้าใจระบบ</h3><p>วิศวกรรมอิเล็กทรอนิกส์ · มหาวิทยาลัยเทคโนโลยีสุรนารี</p><p className="muted">เรียนรู้ IoT, Arduino และ ESP8266 พร้อมลงมือทำโครงงานวิศวกรรมเพื่อแก้ปัญหาให้เกษตรกร</p></article><article><span className="timeline-year"><span className="flag-mark" style={{ background: '#e2a27a' }} aria-hidden="true" />MAR — DEC 2022</span><h3>Frontend Developer <span>↗</span></h3><p>Vertobase Company</p><p className="muted">สร้างประสบการณ์บน React, Next.js และ Flutter ตั้งแต่ responsive UI จนถึง PIN login บน Zignway App</p></article><article><span className="timeline-year"><span className="flag-mark" style={{ background: '#c7ed91' }} aria-hidden="true" />FEB 2023 — PRESENT <span className="current-pill">ปัจจุบัน</span></span><h3>Full Stack Developer <span>↗</span></h3><p>iApp Technology</p><p className="muted">รับผิดชอบตั้งแต่ frontend, API และฐานข้อมูล ไปจนถึง data pipeline, CI/CD และแอป desktop พร้อมส่งมอบงานให้ลูกค้า</p></article></div><SceneLegend chapter={chapters[1]} /></div><div className="mountain-visual"><figure className="story-photo"><img src={photos.presenting} alt="สุเทพกำลังถือไมโครโฟนนำเสนอระบบผ่านโน้ตบุ๊กในห้องประชุม" width={1600} height={1200} loading="lazy" decoding="async" /><figcaption><span>ON THE JOB</span>นำเสนอสถาปัตยกรรม API และเดโมระบบให้ลูกค้าโดยตรง ตั้งแต่ออกแบบจนถึงส่งมอบ</figcaption></figure><div className="field-note"><span>สิ่งที่ยึดถือในการทำงาน</span><p>“เข้าใจปัญหาให้ลึก<br />แล้วค่อยสร้างสิ่งที่เรียบง่าย”</p><small>เข้าใจผู้ใช้ · ออกแบบให้ชัดเจน · ทดสอบก่อนส่งมอบ</small></div></div></div>
         <div className="work-panel"><div className="work-heading"><div><span className="eyebrow">โปรเจกต์จากการทำงาน</span><h3>สิ่งที่ผมได้มีส่วนพัฒนา</h3><p className="work-employer"><strong>{workExperience.role}</strong> · {workExperience.company} · {workExperience.period}</p></div><span>{professionalProjects.length.toString().padStart(2, '0')} โปรเจกต์</span></div><div className="work-list">{(allWork ? professionalProjects : professionalProjects.slice(0, 4)).map((project, index) => <button className="work-row" key={project.title} onClick={() => setDetail(project)}><span className="work-index">0{index + 1}</span><div><h4>{project.title}<span className={`work-kind kind-${project.kind.toLowerCase()}`}>{project.kind}</span></h4><span>{project.role}</span><p className="work-summary">{project.summary}</p></div><span className="work-tech">{project.technologies.slice(0, 3).join(' / ')}</span><ArrowUpRight size={21} /></button>)}</div><button className="text-button all-work" onClick={() => setAllWork(!allWork)}>{allWork ? 'แสดงน้อยลง' : `ดูงานทั้งหมด ${professionalProjects.length} โปรเจกต์`} <ChevronDown size={16} className={allWork ? 'rotate' : ''} /></button></div></div>

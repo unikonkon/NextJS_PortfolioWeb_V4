@@ -3,7 +3,7 @@ export const chapterIds = ['ground', 'mountain', 'sky', 'space'] as const;
 export type ChapterId = typeof chapterIds[number];
 
 // Altitude (metres) at each station; the last entry is "beyond space".
-const altitudes = [0, 2400, 12000, 100000, 400000];
+export const altitudes = [0, 2400, 12000, 100000, 400000];
 
 export const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 export const smooth = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
