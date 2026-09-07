@@ -1,0 +1,13 @@
+# Source images only used by scripts/optimize-images.py. The site loads the web-sized
+# copies in public/project-web and public/photos, so keep the originals out of the deploy.
+public/project/
+public/person.png
+public/person1.jpg
+public/person2.jpg
+public/image1.jpg
+public/next.svg
+
+# Local-only files
+test-results
+playwright-report
+dist

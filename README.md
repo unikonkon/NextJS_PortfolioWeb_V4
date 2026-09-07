@@ -26,6 +26,7 @@ npm run preview
 - `public/person1.jpg`, `public/person.png`, `public/image1.jpg` — รูปต้นฉบับของเจ้าของเว็บ (ภาพ hero, ภาพส่วนติดต่อ, ภาพขณะนำเสนองาน)
 - `public/project/*.png` — ภาพหน้าจอโปรเจกต์ต้นฉบับ อ้างอิงจาก `image` และ `slideImages` ในข้อมูลโปรเจกต์
 - `scripts/optimize-images.py` — สร้างไฟล์ WebP สำหรับเว็บจากรูปต้นฉบับ (`public/photos/*`, `public/project-web/*`, `public/project-web/thumbs/*`) รันด้วย `python3 scripts/optimize-images.py` (ต้องมี Pillow) ทุกครั้งที่เพิ่มหรือเปลี่ยนรูป
+- `.vercelignore` — ตัดรูปต้นฉบับ (`public/project/*.png`, `public/person*.png|jpg`, `public/image1.jpg`) ออกจาก deploy บน Vercel เพราะหน้าเว็บโหลดเฉพาะ WebP ใน `public/project-web` และ `public/photos` ทำให้ output ลดจาก ~152 MB เหลือ ~10 MB (ต้นฉบับยังอยู่ใน repo สำหรับรันสคริปต์แปลงรูป) ถ้าเพิ่มรูปต้นฉบับโฟลเดอร์ใหม่ให้เพิ่มในไฟล์นี้ด้วย
 - `data/personalProjects.ts` — โปรเจกต์ส่วนตัวทั้งหมด ใช้สร้างคลังโปรเจกต์ ค้นหา กรองหมวดหมู่ และลิงก์ GitHub/demo
 - `data/workProject.ts` — โปรเจกต์จากงานประจำ
 - `src/App.tsx` — เรื่องราว ประวัติการทำงาน ช่องทางติดต่อ และข้อมูล eKYB ที่เสริมจากเรซูเม่
