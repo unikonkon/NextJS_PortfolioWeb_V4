@@ -7,6 +7,24 @@ export const altitudes = [0, 2400, 12000, 100000, 400000];
 
 export const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 export const smooth = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
+
+/** Stable terrain variation: reloading or resizing never rearranges the mountain details. */
+export const terrainNoise = (seed: number) => {
+  const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return value - Math.floor(value);
+};
+
+/** Tapered mountain profile with continuous ridges, shoulders and eroded rock bands. */
+export function mountainRadiusAt(radius: number, elevation: number, angle: number, seed = 0) {
+  const t = clamp(elevation, 0, 1);
+  const ridges = 0.14 * Math.sin(angle * 5 + seed) + 0.07 * Math.cos(angle * 9 - t * 4 + seed);
+  const shoulder = 0.13 * Math.sin(Math.PI * t);
+  const strata = 0.045 * Math.sin(t * Math.PI * 12 + Math.sin(angle * 3 + seed));
+  return radius * (1 - t) * (1 + ridges + shoulder + strata);
+}
+
+export const mountainSnowline = (angle: number, seed = 0) =>
+  0.77 + Math.sin(angle * 3 + seed) * 0.045 + Math.cos(angle * 7 - seed) * 0.025;
 /** Inside a chapter the camera drifts slowly (first 70% of its scroll); the real travel happens in the gap before the next chapter. */
 export const travel = (f: number) => (f < 0.7 ? (f / 0.7) * 0.2 : 0.2 + 0.8 * smooth((f - 0.7) / 0.3));
 /** Backdrop colour blend: hold the chapter colour, then cross-fade during the last 40%. */

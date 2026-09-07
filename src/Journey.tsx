@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { altitudes, blend, clamp, measureProgress, smooth, travel } from './journeyMath';
+import { altitudes, blend, clamp, measureProgress, mountainRadiusAt, mountainSnowline, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
 
 /**
@@ -191,23 +191,131 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     const peak: Vec = [-0.9, -0.4, -2.1];
     const mountainHeight = 14; // 40% taller than the first version: room for one camp (and its card) per skill category
     const mountainRadius = 3.5;
+    const facing = Math.atan2(14, 11); // camera-facing trail corridor
+    const terrain: { surface: THREE.Mesh; base: Vec; height: number; radius: number; seed: number }[] = [];
+    function detailedMountain(base: Vec, height: number, radius: number, color: string, seed: number) {
+      const sectors = 18;
+      const levels = 14;
+      const positions: number[] = [];
+      const indices: number[] = [];
+      for (let level = 0; level <= levels; level++) {
+        for (let sector = 0; sector < sectors; sector++) {
+          const angle = sector / sectors * Math.PI * 2;
+          const t = level / levels;
+          const elevation = t + Math.sin(angle * 4 + seed + level * 1.3) * 0.035 * Math.sin(Math.PI * t);
+          const r = mountainRadiusAt(radius, elevation, angle, seed);
+          positions.push(Math.cos(angle) * r, elevation * height, Math.sin(angle) * r);
+          if (level === levels) continue;
+          const a = level * sectors + sector;
+          const b = a + sectors;
+          const c = level * sectors + (sector + 1) % sectors;
+          indices.push(a, b, c);
+          if (level < levels - 1) indices.push(c, b, c + sectors);
+        }
+      }
+      const baseCenter = positions.length / 3;
+      positions.push(0, 0, 0);
+      for (let sector = 0; sector < sectors; sector++) indices.push(baseCenter, sector, (sector + 1) % sectors);
+      const indexed = new THREE.BufferGeometry();
+      indexed.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      indexed.setIndex(indices);
+      const geometry = indexed.toNonIndexed();
+      indexed.dispose();
+      geometry.computeVertexNormals();
+      const vertices = geometry.getAttribute('position');
+      const colors: number[] = [];
+      const grassColor = new THREE.Color(color);
+      const rockColor = new THREE.Color('#88877c');
+      const snowColor = new THREE.Color('#edf1e4');
+      const faceColor = new THREE.Color();
+      for (let face = 0; face < vertices.count; face += 3) {
+        const x = (vertices.getX(face) + vertices.getX(face + 1) + vertices.getX(face + 2)) / 3;
+        const z = (vertices.getZ(face) + vertices.getZ(face + 1) + vertices.getZ(face + 2)) / 3;
+        const t = (vertices.getY(face) + vertices.getY(face + 1) + vertices.getY(face + 2)) / (3 * height);
+        const snow = t > mountainSnowline(Math.atan2(z, x), seed);
+        faceColor.copy(snow ? snowColor : grassColor);
+        if (!snow) faceColor.lerp(rockColor, smooth((t - 0.24) / 0.48) * 0.8);
+        const band = !snow && Math.sin(t * Math.PI * 13 + seed) > 0.55 ? 0.91 : 1;
+        faceColor.multiplyScalar((0.94 + terrainNoise(seed * 91 + face) * 0.12) * band);
+        for (let vertex = 0; vertex < 3; vertex++) colors.push(faceColor.r, faceColor.g, faceColor.b);
+      }
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      const surfaceMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, flatShading: true });
+      materials.set(`mountain-terrain-${seed}`, surfaceMaterial);
+      const surface = new THREE.Mesh(geometry, surfaceMaterial);
+      surface.position.set(...base);
+      surface.castShadow = surface.receiveShadow = true;
+      world.add(surface);
+      surface.updateMatrixWorld(true);
+      const mountain = { surface, base, height, radius, seed };
+      terrain.push(mountain);
+      return mountain;
+    }
     // Two rear peaks frame the existing trail. Their bases sit behind the runner and skill camps.
     const rearPeaks: { base: Vec; height: number; radius: number; color: string }[] = [
       { base: [-5.6, -0.45, -3.0], height: 10.6, radius: 2.35, color: '#8d9b83' },
       { base: [0.5, -0.45, -6.4], height: 11.8, radius: 2.5, color: '#9eaa8d' },
     ];
-    rearPeaks.forEach(({ base, height, radius, color }) => {
-      const ridge = group(base);
-      mesh(new THREE.ConeGeometry(radius, height, 6), color, [0, height / 2, 0], ridge);
-      const snowHeight = height * 0.24;
-      mesh(new THREE.ConeGeometry(radius * 0.24 + 0.045, snowHeight, 6), '#e9edd7', [0, height - snowHeight / 2, 0], ridge);
-    });
-    mesh(new THREE.ConeGeometry(mountainRadius, mountainHeight, 6), '#7b8b73', [peak[0], peak[1] + mountainHeight / 2, peak[2]]);
-    mesh(new THREE.ConeGeometry(1.8, 5.2, 5), '#97a48a', [-3.4, 2.1, -0.4]);
-    mesh(new THREE.ConeGeometry(1.2, 3.8, 5), '#8e9c83', [2.0, 1.4, -3.0]);
-    mesh(new THREE.ConeGeometry(0.55, 1.4, 5), '#e2e9d5', [-3.4, 4.2, -0.4]);
-    mesh(new THREE.ConeGeometry(1.1, 3.8, 6), '#edf0df', [peak[0], peak[1] + mountainHeight - 1.9, peak[2]]);
+    rearPeaks.forEach(({ base, height, radius, color }, index) => detailedMountain(base, height, radius, color, index + 2));
+    const mainMountain = detailedMountain(peak, mountainHeight, mountainRadius, '#7b8b73', 1);
+    detailedMountain([-3.4, -0.5, -0.4], 5.2, 1.8, '#97a48a', 4);
+    detailedMountain([2.0, -0.5, -3.0], 3.8, 1.2, '#8e9c83', 5);
     const summit: Vec = [peak[0], peak[1] + mountainHeight, peak[2]];
+
+    // Sample the actual triangles once at startup, so steps, plants and rocks sit on the new slopes.
+    const slopeRay = new THREE.Raycaster();
+    const radial = new THREE.Vector3();
+    function slopePoint(mountain: typeof terrain[number], height: number, angle: number, clearance = 0.04): Vec {
+      radial.set(Math.cos(angle), 0, Math.sin(angle));
+      slopeRay.ray.origin.set(mountain.base[0], mountain.base[1] + height, mountain.base[2]).addScaledVector(radial, mountain.radius * 2);
+      slopeRay.ray.direction.copy(radial).negate();
+      const hit = slopeRay.intersectObject(mountain.surface, false)[0];
+      if (hit) return hit.point.addScaledVector(radial, clearance).toArray() as Vec;
+      const radius = mountainRadiusAt(mountain.radius, height / mountain.height, angle, mountain.seed) + clearance;
+      return [mountain.base[0] + radial.x * radius, mountain.base[1] + height, mountain.base[2] + radial.z * radius];
+    }
+
+    // Repeated details share four instanced draw calls across the whole range, with no per-frame work.
+    const rocks: { position: Vec; size: number; seed: number }[] = [];
+    const pines: { position: Vec; size: number; seed: number }[] = [];
+    terrain.forEach(mountain => {
+      const count = mountain === mainMountain ? 38 : 20;
+      for (let index = 0; index < count; index++) {
+        const seed = mountain.seed * 100 + index;
+        const angle = facing + (index % 2 ? -1 : 1) * (0.55 + terrainNoise(seed) * 1.5);
+        const height = mountain.height * (0.06 + terrainNoise(seed + 17) * 0.66);
+        const position = slopePoint(mountain, height, angle, 0.025);
+        rocks.push({ position, size: 0.11 + terrainNoise(seed + 21) * 0.16, seed });
+        if (index % 2 === 0 && height < mountain.height * 0.5) {
+          pines.push({ position, size: 0.24 + terrainNoise(seed + 39) * 0.22, seed });
+        }
+      }
+    });
+    const instanceTransform = new THREE.Object3D();
+    function detailInstances(geometry: THREE.BufferGeometry, color: string, details: typeof rocks, part: 'rock' | 'trunk' | 'lower' | 'upper') {
+      const instances = new THREE.InstancedMesh(geometry, material(color), details.length);
+      instances.castShadow = instances.receiveShadow = true;
+      details.forEach(({ position, size, seed }, index) => {
+        instanceTransform.position.set(...position);
+        instanceTransform.rotation.set(0, terrainNoise(seed + 52) * Math.PI * 2, 0);
+        if (part === 'rock') {
+          instanceTransform.scale.set(size * 1.5, size * 0.7, size);
+          instanceTransform.rotation.z = (terrainNoise(seed + 63) - 0.5) * 0.6;
+        } else {
+          instanceTransform.scale.setScalar(size);
+          instanceTransform.position.y += size * ({ trunk: 0.27, lower: 0.7, upper: 1.05 }[part]);
+        }
+        instanceTransform.updateMatrix();
+        instances.setMatrixAt(index, instanceTransform.matrix);
+      });
+      instances.instanceMatrix.needsUpdate = true;
+      instances.computeBoundingSphere();
+      world.add(instances);
+    }
+    detailInstances(new THREE.DodecahedronGeometry(1, 0), '#858a78', rocks, 'rock');
+    detailInstances(new THREE.CylinderGeometry(0.07, 0.1, 0.54, 5), '#76614c', pines, 'trunk');
+    detailInstances(new THREE.ConeGeometry(0.46, 0.95, 6), '#4b6c50', pines, 'lower');
+    detailInstances(new THREE.ConeGeometry(0.34, 0.85, 6), '#698258', pines, 'upper');
 
     // A visible sun and lightweight rays; the existing shadow-casting light supplies the actual illumination.
     const mountainSun = group([0.5, 14.3, -5.5]);
@@ -266,16 +374,34 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     // half of the slope, because every pair is on screen by 910 M on the altimeter (see cardAltitudes). Above the
     // camps the trail keeps zigzagging up to the summit. The swing is small, so the whole trail stays about half
     // the length of the first version (≈19 vs 38 units).
-    const facing = Math.atan2(14, 11); // camera direction on the XZ plane
     const campBase = 1.4;
     const campSpacing = 1.15;
     const trailSwing = 0.27;
-    const radiusAt = (height: number) => mountainRadius * (1 - height / mountainHeight);
     const trailPoint = (height: number): Vec => {
       const angle = facing + trailSwing * Math.cos((Math.PI * (height - campBase)) / campSpacing);
-      const radius = radiusAt(height) + 0.06;
-      return [peak[0] + Math.cos(angle) * radius, peak[1] + height, peak[2] + Math.sin(angle) * radius];
+      return slopePoint(mainMountain, height, angle, 0.08);
     };
+    const trailVertices: number[] = [];
+    const trailIndices: number[] = [];
+    for (let step = 0; step <= 88; step++) {
+      const height = 0.45 + step / 88 * (mountainHeight - 1.1);
+      const angle = facing + trailSwing * Math.cos((Math.PI * (height - campBase)) / campSpacing);
+      const width = 0.16 / Math.max(0.4, mountainRadiusAt(mountainRadius, height / mountainHeight, angle, 1));
+      trailVertices.push(...slopePoint(mainMountain, height, angle - width, 0.035), ...slopePoint(mainMountain, height, angle + width, 0.035));
+      if (step > 0) {
+        const index = step * 2;
+        trailIndices.push(index - 2, index, index - 1, index - 1, index, index + 1);
+      }
+    }
+    const trailGeometry = new THREE.BufferGeometry();
+    trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trailVertices, 3));
+    trailGeometry.setIndex(trailIndices);
+    trailGeometry.computeVertexNormals();
+    const trailMaterial = new THREE.MeshStandardMaterial({ color: '#ad9d7e', roughness: 1, side: THREE.DoubleSide });
+    materials.set('mountain-trail', trailMaterial);
+    const trailSurface = new THREE.Mesh(trailGeometry, trailMaterial);
+    trailSurface.receiveShadow = true;
+    world.add(trailSurface);
     for (let height = 0.5; height < mountainHeight - 1; height += 0.2) {
       const stone = box([0.24, 0.06, 0.24], Math.round(height / 0.2) % 2 ? '#d9c9a2' : '#e6dbbd', trailPoint(height));
       stone.rotation.y = height * 2;
@@ -737,7 +863,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       window.removeEventListener('pointermove', move);
       document.removeEventListener('visibilitychange', visibility);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
-      scene.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.dispose(); });
+      scene.traverse(object => {
+        if (object instanceof THREE.Mesh) object.geometry.dispose();
+        if (object instanceof THREE.InstancedMesh) object.dispose();
+      });
       materials.forEach(item => item.dispose());
       glowTexture.dispose();
       sun.shadow.dispose();
