@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { createFlourishes, createPopTriggers } from './Flourish';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createTraveler, createTravelerLighting } from './Traveler';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { batchStaticScene, createCloudGeometry, createPineCrown, createPlanet, createRockRelief, noise3 } from './SceneAssets';
-import { advanceRunStride, altitudes, blend, clamp, measureProgress, readChapterBounds, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
+import { advanceRunStride, altitudes, blend, clamp, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
 import { createMountainFarm } from './MountainFarm';
 import { createSkyFlight, flightBoarding, flightEnd, flightRevealStart, flightStart } from './SkyFlight';
@@ -87,7 +88,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       renderer.domElement.style.visibility = 'hidden';
       container.appendChild(renderer.domElement);
       // Development-only counters let browser tests inspect the actual GPU workload without a UI overlay.
-      const diagnostics = import.meta.env.DEV ? { calls: 0, triangles: 0, frames: 0, pixelRatio, cpuMs: 0, aircraftY: 0, passengerY: 0 } : null;
+      const diagnostics = import.meta.env.DEV ? { calls: 0, triangles: 0, frames: 0, pixelRatio, cpuMs: 0, aircraftY: 0, passengerY: 0, progress: 0 } : null;
       if (diagnostics) Object.defineProperty(renderer.domElement, 'journeyDiagnostics', { value: diagnostics });
 
       const scene = new THREE.Scene();
@@ -162,9 +163,11 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         box([0.05, height, 0.05], '#5e655d', [0, height / 2, 0], item);
         const banner = box([0.5, 0.28, 0.03], color, [0.26, height - 0.16, 0], item);
         flags.push(banner);
+        flagGroups.push(item);
         return item;
       }
       const flags: THREE.Mesh[] = [];
+      const flagGroups: THREE.Object3D[] = [];
       const floaters: { object: THREE.Object3D; base: number; amplitude: number; phase: number }[] = [];
       const float = (object: THREE.Object3D, amplitude = 0.12, phase = 0) => floaters.push({ object, base: object.position.y, amplitude, phase });
 
@@ -458,7 +461,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         stone.rotation.y = Math.atan2(ahead[0] - point[0], ahead[2] - point[2]);
       }
       const milestones: [number, string][] = [[2.9, '#e8c46a'], [6.9, '#e2a27a'], [11.6, '#c7ed91']];
-      milestones.forEach(([height, color]) => flag(trailPoint(height), color, 0.95));
+      const milestoneFlags = milestones.map(([height, color]) => ({ height, flag: flag(trailPoint(height), color, 0.95) }));
       // Base camp tent: the pause to learn before the next push.
       const camp = group(trailPoint(10.2));
       const tent = mesh(new THREE.ConeGeometry(0.42, 0.42, 4), '#d99a6c', [0, 0.21, 0], camp);
@@ -467,17 +470,21 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       // Skill camps: a ledge and a signpost per category from data/skillCategories.ts. Their world positions are
       // projected every rendered frame to place the HTML skill cards (see updateSkillCards below).
       const campColors = ['#e8c46a', '#e2a27a', '#6caaa9', '#c7ed91', '#f9cd75', '#db9872', '#9fb8e8', '#e26d5a'];
+      const campMarkers: THREE.Object3D[] = [];
       const campAnchors = skillCategories.map((_, index) => {
         const point = trailPoint(campBase + index * campSpacing);
         const ledge = group(point);
         mesh(new THREE.CylinderGeometry(0.36, 0.3, 0.1, 7), '#d9c9a2', [0, 0.03, 0], ledge);
         box([0.045, 0.62, 0.045], '#75604a', [0.14, 0.36, 0.06], ledge);
-        box([0.36, 0.2, 0.035], campColors[index % campColors.length], [0.14, 0.6, 0.06], ledge);
-        mesh(new THREE.OctahedronGeometry(0.06), '#fff6d6', [0.14, 0.78, 0.06], ledge, true);
+        // The board and its gem sit in their own group so they can spring up when the runner arrives.
+        const marker = group([0.14, 0.44, 0.06], ledge);
+        box([0.36, 0.2, 0.035], campColors[index % campColors.length], [0, 0.16, 0], marker);
+        mesh(new THREE.OctahedronGeometry(0.06), '#fff6d6', [0, 0.34, 0], marker, true);
+        campMarkers.push(marker);
         return new THREE.Vector3(point[0] + 0.14, point[1] + 0.9, point[2] + 0.06);
       });
       // Summit flag: the current chapter, planted at the top.
-      flag(summit, '#c7ed91', 1.15);
+      const summitFlag = flag(summit, '#c7ed91', 1.15);
       cloud([-4.6, 6.4, -0.6], 0.75, 0.7, true);
       cloud([3.8, 9.2, -2.4], 0.65, 0.9, true);
       cloud([-2.8, 12.6, 1.6], 0.55, 1.1, true);
@@ -603,6 +610,25 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       skillCategories.forEach((_, index) => campKeys.push(Math.max(pairKeys[Math.floor(index / 2)] + runnerStep, (campKeys[index - 1] ?? 0) + runnerStep)));
       const summitKey = 0.8;
       const climb: [number, number][] = [[0.5, 0.03], ...skillCategories.map((_, index): [number, number] => [campBase + index * campSpacing, campKeys[index]]), [mountainHeight - 0.4, summitKey]];
+      // Trail height → runner key (piecewise linear over the climb table), so flags planted by height can pop
+      // exactly as the runner passes them.
+      const keyAtHeight = (height: number) => {
+        let i = 0;
+        while (i < climb.length - 2 && height > climb[i + 1][0]) i++;
+        const [h0, k0] = climb[i]; const [h1, k1] = climb[i + 1];
+        return k0 + ((height - h0) / Math.max(1e-6, h1 - h0)) * (k1 - k0);
+      };
+      // Reaching a camp: the signpost springs up and the runner does a little celebratory hop (a bigger one at
+      // the summit). Nothing plays while motion is paused.
+      const motion = createFlourishes();
+      const skip = motion.createHop();
+      const popAt = (target: THREE.Object3D, from?: number, hop = 0) => () => { if (pauseRef.current) return; motion.pop(target, from); if (hop > 0) skip.play(hop); };
+      const firePops = createPopTriggers([
+        ...campMarkers.map((marker, index) => ({ key: campKeys[index], fire: popAt(marker, undefined, 1) })),
+        ...milestoneFlags.map(item => ({ key: keyAtHeight(item.height), fire: popAt(item.flag, 0.6) })),
+        { key: summitKey, fire: popAt(summitFlag, 0.5, 1.6) },
+      ]);
+      const jump = motion.createJump();
       const cForHeight = (height: number) => {
         for (let step = 0; step < climb.length - 1; step++) {
           const [h0, c0] = climb[step];
@@ -672,7 +698,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const boarding = Math.max(flightBoarding(progress), capsuleBoarding);
         // The same passenger boards each vehicle; the capsule keeps them seated through space.
         const hopWeight = smooth((progress - flightStart) / 0.08) * (1 - smooth((progress - 2.35) / 0.1)) * (1 - boarding);
-        const hop = segmentLength[index] > 0.2 ? Math.sin(Math.PI * local) * 0.7 * hopWeight : 0;
+        firePops(progress);
+        // The jump's arc and the body's squash/stretch come from the scrubbed GSAP timeline (see Flourish.ts).
+        const leap = segmentLength[index] > 0.2 ? hopWeight : 0;
+        const pose = jump.seek(leap > 0 ? local : 0);
+        const hop = pose.lift * 0.7 * leap + skip.pose.lift * skip.strength * 0.32 * (1 - boarding);
+        const stretch = pose.stretch * leap + skip.pose.stretch * 0.7 * (1 - boarding);
+        runner.scale.set(1 - stretch * 0.1, 1 + stretch * 0.16, 1 - stretch * 0.1);
         const dt = Math.max(1, deltaMs) / 1000;
         const distance = runnerPoint.distanceTo(runnerState.previous);
         runnerState.previous.copy(runnerPoint);
@@ -697,7 +729,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         if (boarding > 0) runner.quaternion.slerp(capsuleBoarding > 0 ? spaceFlight.spacecraft.quaternion : flight.aircraft.quaternion, boarding);
         // Pose blending: walking and hopping ease into a seated passenger pose.
         const swing = Math.sin(runnerState.stride) * runnerState.amplitude;
-        const airborne = hopWeight * Math.sin(Math.PI * local);
+        const airborne = leap * pose.lift;
         const k = pauseRef.current ? 1 : Math.min(1, dt * 14);
         legL.rotation.x = lerpAngle(legL.rotation.x, swing * 0.95 * (1 - airborne) + airborne * 0.75, k);
         legR.rotation.x = lerpAngle(legR.rotation.x, -swing * 0.95 * (1 - airborne) - airborne * 0.55, k);
@@ -863,8 +895,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       }
       batchStaticScene(world, new Set<THREE.Object3D>([
         runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays,
-        ...clouds.map(item => item.group), ...floaters.map(item => item.object), ...flags,
+        ...clouds.map(item => item.group), ...floaters.map(item => item.object), ...flagGroups, ...campMarkers,
       ]));
+      // Decorative motion runs on GSAP loops (ticked from the frame loop below): balloon/islands bob out of
+      // phase, cloud banks wander at their own pace, flags flutter in turn.
+      motion.drift(floaters);
+      motion.driftClouds(clouds);
+      motion.flutter(flags);
       if (mobile) {
         // Only the mountains and the runner cast shadows on phones; trees, rocks, camps, farm, aircraft and the
         // batched scenery still receive them, which keeps the look while halving the shadow pass.
@@ -923,6 +960,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       let appliedProgress = -1;
       const applyProgress = (progress: number) => {
         progressNow = progress;
+        if (diagnostics) diagnostics.progress = progress;
         const index = Math.min(Math.floor(progress), stations.length - 2);
         goal.lerpVectors(stations[index], stations[index + 1], travel(progress - index));
         // Keep the expanded terrace and gardener above the viewport edge, then return to the climb framing.
@@ -941,18 +979,12 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         progressRef.current?.(progress);
       };
 
-      // Chapter/altimeter/backdrop updates run on scroll events too, so the UI stays in sync
-      // even when the WebGL frame loop is slow (low-end GPUs, software rendering).
-      let bounds = readChapterBounds();
-      let layoutDirty = false;
-      const layoutObserver = new ResizeObserver(() => { layoutDirty = true; dirty = true; });
-      for (const element of document.querySelectorAll('#ground, #mountain, #sky, #space, main')) layoutObserver.observe(element);
-      const currentProgress = () => {
-        if (layoutDirty) { bounds = readChapterBounds(); layoutDirty = false; }
-        return measureProgress(bounds);
-      };
-      const sync = () => { applyProgress(currentProgress()); dirty = true; };
-      window.addEventListener('scroll', sync, { passive: true });
+      // GSAP ScrollTrigger scrubs the journey timeline (chapter bounds → progress) and updates synchronously on
+      // scroll events, so chapter/altimeter/backdrop stay in sync even when the WebGL frame loop is slow (low-end
+      // GPUs, software rendering). Layout changes in the story rebuild the timeline as soon as they are observed.
+      const scroll = motion.createScrollDriver(() => { applyProgress(scroll.progress); dirty = true; });
+      const layoutObserver = new ResizeObserver(() => { scroll.refresh(); dirty = true; });
+      for (const element of [document.body, ...document.querySelectorAll('#ground, #mountain, #sky, #space, main')]) layoutObserver.observe(element);
 
       let active = true;
       let lastRaf = 0;
@@ -974,7 +1006,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const delta = Math.min(timestamp - lastFrame, 50);
         lastFrame = timestamp;
         if (hidden) return;
-        applyProgress(currentProgress());
+        applyProgress(scroll.progress);
         const distance = target.distanceTo(goal);
         if (distance > 0.0005) {
           // Time-based easing (≈250 ms time constant) so the camera keeps pace with scrolling at any frame rate.
@@ -991,12 +1023,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         if (!pauseRef.current) {
           elapsed += delta / 1000;
           world.rotation.y += (pointer.x * 0.12 + Math.sin(elapsed * 0.15) * 0.03 - world.rotation.y) * (1 - Math.exp(-delta / 400));
-          clouds.forEach((item, index) => {
-            item.group.position.x = item.base + Math.sin(elapsed * 0.13 * item.speed + index) * 0.4;
-            item.group.position.y = item.height + Math.sin(elapsed * 0.16 + index * 1.7) * 0.045;
-          });
-          floaters.forEach(item => { item.object.position.y = item.base + Math.sin(elapsed * 0.8 + item.phase) * item.amplitude; });
-          flags.forEach((banner, index) => { banner.rotation.y = Math.sin(elapsed * 2.4 + index) * 0.22; });
+          motion.tick(delta);
           planet.rotation.y = elapsed * 0.035;
           planetModel.clouds.rotation.y = elapsed * 0.014;
           ring.rotation.z = -0.3 + elapsed * 0.05;
@@ -1036,6 +1063,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           diagnostics.calls = renderer.info.render.calls;
           diagnostics.triangles = renderer.info.render.triangles;
           diagnostics.pixelRatio = pixelRatio;
+          Object.assign(diagnostics, { balloonY: floaters[0]?.object.position.y ?? 0, markerScale: Math.max(...campMarkers.map(marker => marker.scale.y)), flagYaw: flags[0]?.rotation.y ?? 0, runnerScaleY: runner.scale.y, jumpLift: Math.max(jump.pose.lift, skip.pose.lift) });
           diagnostics.frames++;
           diagnostics.cpuMs = performance.now() - renderStarted;
           diagnostics.aircraftY = flight.aircraft.position.y;
@@ -1074,8 +1102,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         disposed = true;
         cancelAnimationFrame(animation);
         layoutObserver.disconnect();
+        motion.dispose();
         window.removeEventListener('resize', resize);
-        window.removeEventListener('scroll', sync);
         window.removeEventListener('pointermove', move);
         document.removeEventListener('visibilitychange', visibility);
         renderer.domElement.removeEventListener('webglcontextlost', contextLost);
