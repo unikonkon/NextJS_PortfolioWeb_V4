@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createTraveler, createTravelerLighting } from './Traveler';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { batchStaticScene, createPineCrown, createPlanet, createRockRelief, noise3 } from './SceneAssets';
+import { batchStaticScene, createCloudGeometry, createPineCrown, createPlanet, createRockRelief, noise3 } from './SceneAssets';
 import { advanceRunStride, altitudes, blend, clamp, measureProgress, readChapterBounds, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
 import { createMountainFarm } from './MountainFarm';
@@ -104,8 +104,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       sun.castShadow = true;
       sun.shadow.mapSize.set(1024, 1024);
       Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 0.5, far: 80 });
-      sun.shadow.bias = -0.00025;
-      sun.shadow.normalBias = 0.025;
+      sun.shadow.bias = -0.00012;
+      sun.shadow.normalBias = 0.018;
       scene.add(sun, sun.target);
 
       const world = new THREE.Group();
@@ -140,20 +140,19 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.7, 6), '#75604a', [0, 0.3, 0], item);
         for (let layer = 0; layer < 3; layer++) mesh(createPineCrown(0.68 - layer * 0.13, 1.05), ['#426747', '#547955', '#6c8c60'][layer], [0, 0.8 + layer * 0.38, 0], item);
       }
-      const clouds: { group: THREE.Group; base: number; speed: number }[] = [];
-      function cloud(position: Vec, scale = 1, speed = 1) {
+      const cloudGeometry = createCloudGeometry();
+      const cloudMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, envMapIntensity: 0.18 });
+      materials.set('cloud-banks', cloudMaterial);
+      const clouds: { group: THREE.Group; base: number; height: number; speed: number }[] = [];
+      function cloud(position: Vec, scale = 1, speed = 1, castShadow = false) {
         const item = group(position, stage, scale);
-        for (let piece = 0; piece < 5; piece++) {
-          const puff = mesh(new THREE.SphereGeometry(0.6, 16, 10), '#ffffff', [(piece - 2) * 0.48, Math.sin(piece * 2) * 0.17, Math.cos(piece) * 0.12], item);
-          puff.scale.y = 0.65 + (piece % 2) * 0.4;
-          puff.castShadow = false;
-        }
-        const puffs = item.children as THREE.Mesh[];
-        const geometries = puffs.map(puff => { puff.updateMatrix(); const g = puff.geometry.clone().applyMatrix4(puff.matrix); puff.geometry.dispose(); return g; });
-        const bank = new THREE.Mesh(mergeGeometries(geometries), material('#ffffff'));
-        geometries.forEach(geometry => geometry.dispose());
-        item.clear(); item.add(bank);
-        clouds.push({ group: item, base: position[0], speed });
+        const bank = new THREE.Mesh(cloudGeometry, cloudMaterial);
+        bank.name = 'cloud-bank';
+        bank.castShadow = castShadow;
+        bank.receiveShadow = true;
+        item.add(bank);
+        clouds.push({ group: item, base: position[0], height: position[1], speed });
+        return item;
       }
       function flag(position: Vec, color: string, height = 0.9, parent: THREE.Object3D = stage) {
         const item = group(position, parent);
@@ -241,7 +240,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
             const angle = sector / sectors * Math.PI * 2;
             const t = level / levels;
             const elevation = t + Math.sin(angle * 4 + seed + level * 1.3) * 0.007 * Math.sin(Math.PI * t);
-            const erosion = (noise3(Math.cos(angle) * 4 + seed, elevation * 12, Math.sin(angle) * 4) - 0.5) * 0.11 * Math.sin(Math.PI * t);
+            const erosion = ((noise3(Math.cos(angle) * 4 + seed, elevation * 12, Math.sin(angle) * 4) - 0.5) * 0.14
+              + (noise3(Math.cos(angle) * 9 + seed, elevation * 26, Math.sin(angle) * 9) - 0.5) * 0.045) * Math.sin(Math.PI * t);
             const r = mountainRadiusAt(radius, elevation, angle, seed) * (1 + erosion);
             positions.push(Math.cos(angle) * r, elevation * height, Math.sin(angle) * r);
             uvs.push(sector / sectors * 5, t * 8);
@@ -266,8 +266,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const vertices = geometry.getAttribute('position');
         const colors: number[] = [];
         const grassColor = new THREE.Color(color);
-        const rockColor = new THREE.Color('#88877c');
-        const snowColor = new THREE.Color('#edf1e4');
+        const rockColor = new THREE.Color('#778084');
+        const sedimentColor = new THREE.Color('#ad9c80');
+        const mossColor = new THREE.Color('#526d4b');
+        const snowColor = new THREE.Color('#e7edf0');
         const faceColor = new THREE.Color();
         const normals = geometry.getAttribute('normal');
         for (let vertex = 0; vertex < vertices.count; vertex++) {
@@ -275,13 +277,17 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           const t = vertices.getY(vertex) / height;
           const stone = noise3(x * 3 + seed, t * 20, z * 3);
           const slope = 1 - Math.max(0, normals.getY(vertex));
+          const strata = 0.5 + 0.5 * Math.sin(t * 92 + noise3(x + seed, t * 8, z) * 4);
+          const crevice = smooth((0.5 - stone) / 0.28) * Math.sin(Math.PI * clamp(t, 0, 1));
           faceColor.copy(grassColor).lerp(rockColor, smooth((t - 0.15) / 0.6) * 0.75 + slope * 0.18);
+          faceColor.lerp(sedimentColor, smooth((strata - 0.68) / 0.32) * 0.22 * (1 - smooth((t - 0.72) / 0.1)));
+          faceColor.lerp(mossColor, smooth((stone - 0.45) / 0.3) * (1 - smooth((t - 0.18) / 0.34)) * 0.65);
           const snow = smooth((t - mountainSnowline(Math.atan2(z, x), seed) + (stone - 0.5) * 0.035) / 0.045);
-          faceColor.lerp(snowColor, snow).multiplyScalar(0.72 + stone * 0.38);
+          faceColor.lerp(snowColor, snow).multiplyScalar(0.76 + stone * 0.28 - crevice * 0.17 * (1 - snow));
           colors.push(faceColor.r, faceColor.g, faceColor.b);
         }
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-        const surfaceMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, bumpMap: rockRelief, bumpScale: 0.075 });
+        const surfaceMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, bumpMap: rockRelief, bumpScale: 0.12 });
         materials.set(`mountain-terrain-${seed}`, surfaceMaterial);
         const surface = new THREE.Mesh(geometry, surfaceMaterial);
         surface.position.set(...base);
@@ -468,9 +474,11 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       });
       // Summit flag: the current chapter, planted at the top.
       flag(summit, '#c7ed91', 1.15);
-      cloud([-4.6, 6.4, -0.6], 0.75, 0.7);
-      cloud([3.8, 9.2, -2.4], 0.65, 0.9);
-      cloud([-2.8, 12.6, 1.6], 0.55, 1.1);
+      cloud([-4.6, 6.4, -0.6], 0.75, 0.7, true);
+      cloud([3.8, 9.2, -2.4], 0.65, 0.9, true);
+      cloud([-2.8, 12.6, 1.6], 0.55, 1.1, true);
+      // One low bank behind the ridge adds distance without filling the trail corridor.
+      cloud([-4.4, 3.5, -4.7], 1, 0.35).scale.set(1.3, 0.28, 0.65);
       // Everything above the mountain lives in a group lifted by `lift`, so the sky and space keep their layout.
       const upper = group([0, lift, 0], world);
       stage = upper;
@@ -970,7 +978,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         if (!pauseRef.current) {
           elapsed += delta / 1000;
           world.rotation.y += (pointer.x * 0.12 + Math.sin(elapsed * 0.15) * 0.03 - world.rotation.y) * (1 - Math.exp(-delta / 400));
-          clouds.forEach((item, index) => { item.group.position.x = item.base + Math.sin(elapsed * 0.25 * item.speed + index) * 0.35; });
+          clouds.forEach((item, index) => {
+            item.group.position.x = item.base + Math.sin(elapsed * 0.13 * item.speed + index) * 0.4;
+            item.group.position.y = item.height + Math.sin(elapsed * 0.16 + index * 1.7) * 0.045;
+          });
           floaters.forEach(item => { item.object.position.y = item.base + Math.sin(elapsed * 0.8 + item.phase) * item.amplitude; });
           flags.forEach((banner, index) => { banner.rotation.y = Math.sin(elapsed * 2.4 + index) * 0.22; });
           planet.rotation.y = elapsed * 0.035;
@@ -999,8 +1010,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         sun.position.lerp(sunWorldPosition, sunlight);
         sun.target.position.lerp(mountainLightTarget, sunlight);
         sun.color.copy(daylightColor).lerp(mountainLightColor, sunlight);
-        sun.intensity = 3.1 + sunlight * 0.4;
-        hemisphere.intensity = 1.4 - 0.4 * sunlight - 0.9 * smooth((progressNow - 2.4) / 0.8);
+        sun.intensity = 3.1 + sunlight * 0.5;
+        hemisphere.intensity = 1.4 - 0.55 * sunlight - 0.9 * smooth((progressNow - 2.4) / 0.8);
         travelerLighting.update(runner, spaceBoarding(Math.min(3, Math.floor(runnerState.progress)) + travel(runnerState.progress % 1)));
         farm.update(elapsed, camera, pauseRef.current);
         const spaceChapter = Math.min(3, Math.floor(runnerState.progress));
@@ -1057,10 +1068,12 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         renderer.domElement.removeEventListener('webglcontextlost', contextLost);
         renderer.domElement.remove();
         const release = () => {
+          const geometries = new Set<THREE.BufferGeometry>();
           scene.traverse(object => {
-            if (object instanceof THREE.Mesh) object.geometry.dispose();
+            if (object instanceof THREE.Mesh) geometries.add(object.geometry);
             if (object instanceof THREE.InstancedMesh) object.dispose();
           });
+          geometries.forEach(geometry => geometry.dispose());
           materials.forEach(item => item.dispose());
           glowTexture.dispose();
           rockRelief.dispose();

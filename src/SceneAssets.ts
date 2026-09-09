@@ -22,9 +22,10 @@ export function createRockRelief() {
   const data = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const u = x / size * Math.PI * 2, v = y / size * Math.PI * 2;
-    const stratum = Math.sin(v * 8 + Math.sin(u * 3) * 1.7);
+    const stratum = Math.sin(v * 8 + Math.sin(u * 3) * 1.7 + Math.sin(u * 5 + v * 2) * 0.35);
     const grain = Math.sin(u * 31 + v * 17) * Math.cos(v * 29 - u * 13);
-    const value = 128 + stratum * 26 + grain * 18;
+    const fissure = Math.pow(Math.max(0, Math.cos(u * 9 + Math.sin(v * 2) * 1.3)), 18);
+    const value = 139 + stratum * 29 + grain * 12 - fissure * 40;
     const i = (y * size + x) * 4;
     data[i] = data[i + 1] = data[i + 2] = value;
     data[i + 3] = 255;
@@ -36,6 +37,31 @@ export function createRockRelief() {
   texture.generateMipmaps = true;
   texture.needsUpdate = true;
   return texture;
+}
+
+/** All cloud banks reuse this one opaque mesh; baked underside tint adds depth without volumetric effects. */
+export function createCloudGeometry() {
+  const puffs = [
+    [-0.9, -0.08, 0, 0.52, 0.38, 0.48], [-0.38, 0.04, 0.06, 0.65, 0.49, 0.58],
+    [0.15, 0.23, -0.08, 0.69, 0.61, 0.57], [0.7, 0.02, 0.06, 0.6, 0.44, 0.51],
+    [1.08, -0.09, 0, 0.39, 0.28, 0.36], [-0.2, -0.19, 0.37, 0.48, 0.26, 0.34],
+    [0.45, -0.16, 0.38, 0.39, 0.27, 0.32],
+  ];
+  const pieces = puffs.map(([x, y, z, sx, sy, sz], index) =>
+    new THREE.SphereGeometry(1, index < 5 ? 20 : 12, index < 5 ? 12 : 8).scale(sx, sy, sz).translate(x, y, z));
+  const geometry = mergeGeometries(pieces);
+  pieces.forEach(piece => piece.dispose());
+  const positions = geometry.getAttribute('position');
+  const colors = new Float32Array(positions.count * 3);
+  const shadow = new THREE.Color('#a9bac6'), top = new THREE.Color('#fff8ea'), tint = new THREE.Color();
+  for (let index = 0; index < positions.count; index++) {
+    const light = smooth((positions.getY(index) + 0.4) / 1.15);
+    tint.copy(shadow).lerp(top, light);
+    colors.set([tint.r, tint.g, tint.b], index * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 export function createPlanet(materials: Map<string, THREE.Material>) {

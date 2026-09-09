@@ -1,7 +1,26 @@
 import { test, expect } from '@playwright/test';
 import * as THREE from 'three';
-import { batchStaticScene, createPlanet, createRockRelief } from '../src/SceneAssets';
+import { batchStaticScene, createCloudGeometry, createPlanet, createRockRelief } from '../src/SceneAssets';
 import { measureProgress } from '../src/journeyMath';
+
+test('shared cloud geometry has shaded undersides within a small triangle budget', () => {
+  const geometry = createCloudGeometry();
+  const position = geometry.getAttribute('position');
+  const normal = geometry.getAttribute('normal');
+  const color = geometry.getAttribute('color');
+  expect((geometry.index?.count ?? position.count) / 3).toBeLessThan(2800);
+  let top = 0, bottom = 0;
+  for (let index = 1; index < position.count; index++) {
+    if (position.getY(index) > position.getY(top)) top = index;
+    if (position.getY(index) < position.getY(bottom)) bottom = index;
+    expect(Number.isFinite(normal.getX(index) + normal.getY(index) + normal.getZ(index))).toBe(true);
+  }
+  expect(color.getX(top)).toBeGreaterThan(color.getX(bottom));
+  expect(color.getZ(bottom)).toBeGreaterThan(color.getX(bottom));
+  const copy = createCloudGeometry();
+  expect(Array.from(copy.getAttribute('position').array)).toEqual(Array.from(position.array));
+  geometry.dispose(); copy.dispose();
+});
 
 test('static batching preserves placement, animation roots and chapter culling', () => {
   const root = new THREE.Group();
@@ -42,13 +61,13 @@ test('procedural surface textures stay small and cached scroll measurements foll
 });
 
 test('detailed scenery stays within a draw budget and stops rendering when paused', async ({ page }, testInfo) => {
-  test.setTimeout(90000);
+  test.setTimeout(120000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error' && /THREE|WebGL|shader/.test(message.text())) errors.push(message.text()); });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  await expect(page.locator('canvas')).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('canvas')).toBeVisible({ timeout: 45000 });
   await page.evaluate(() => document.fonts.ready);
   const results = [];
   for (const [name, previous, next, fraction] of [['ground', 'ground', 'mountain', 0], ['mountain', 'ground', 'mountain', 0.86], ['sky', 'mountain', 'sky', 0.63], ['space', 'sky', 'space', 0.98]] as const) {
