@@ -106,6 +106,16 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
 .work-index { color: #5c7453; }
 .text-button { font-size: 13px; }
 .sky-section .chapter-content { background: #f1f7f3f2; }
+/* Chapter intros (02, 03) float over the 3D scene: no panel, each piece of text carries its own soft backdrop. */
+.chapter-intro { max-width: 1200px; margin: 0 auto 26px; text-align: center; color: #293f33; }
+.chapter-intro .chapter-heading { margin-bottom: 26px; }
+.chapter-intro .chapter-heading .eyebrow, .chapter-intro .altitude { display: inline-flex; align-items: center; padding: 7px 13px; border-radius: 999px; background: #f4f7ede6; border: 1px solid #ffffffb3; box-shadow: 0 6px 20px #233e3512; }
+.chapter-intro .altitude { line-height: 1.4; }
+.chapter-intro h2 { display: table; margin-inline: auto; padding: 10px 28px 12px; border-radius: 20px; background: #f4f7edeb; border: 1px solid #ffffffc4; box-shadow: 0 12px 40px #233e3514; }
+.chapter-intro .section-description { display: table; max-width: 720px; margin: 14px auto 0; padding: 10px 22px; border-radius: 16px; background: #f4f7ede0; border: 1px solid #ffffffa6; box-shadow: 0 8px 26px #233e3510; }
+.sky-section .chapter-intro .chapter-heading .eyebrow, .sky-section .chapter-intro .altitude, .sky-section .chapter-intro h2, .sky-section .chapter-intro .section-description { background: #f1f7f3e8; }
+.mountain-section .chapter-content .timeline { margin-top: 0; }
+@media (min-width: 761px) { .chapter-intro h2, .chapter-intro .section-description, .chapter-intro .chapter-heading .eyebrow, .chapter-intro .altitude { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); } }
 .sky-section .eyebrow { color: #486c62; }
 .sky-section .chapter-subtitle { color: #678b7e; }
 .project-controls { display: flex; flex-wrap: wrap; align-items: center; margin-top: 34px; gap: 16px; }
@@ -508,3 +518,19 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
   .skill-card .skill-chips li { font-size: 10px; padding: 3px 6px; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 760px) {
+  .chapter-intro { margin-bottom: 18px; }
+  .chapter-intro .chapter-heading { margin-bottom: 18px; }
+  .chapter-intro h2 { padding: 8px 16px 10px; border-radius: 14px; }
+  .chapter-intro .section-description { padding: 8px 14px; border-radius: 12px; }
+}
+/* Space (04) intro: same floating text blocks on a dark backdrop, left-aligned like the chapter copy below it. */
+.space-section .chapter-intro { text-align: left; color: #eaf1e3; }
+.space-section .chapter-intro .chapter-heading .eyebrow, .space-section .chapter-intro .altitude, .space-section .chapter-intro .availability, .space-section .chapter-intro h2 { background: #18333be6; border: 1px solid #66878470; box-shadow: 0 12px 40px #04101a33; }
+.space-section .chapter-intro .availability { display: inline-flex; padding: 7px 13px; border-radius: 999px; }
+.space-section .chapter-intro h2 { margin: 16px 0 0; }
+.space-section .chapter-intro .chapter-subtitle { color: #c6dca3; }
+@media (max-width: 760px) {
+  .space-section .chapter-intro { text-align: center; }
+  .space-section .chapter-intro h2 { margin-inline: auto; }
+}

@@ -724,8 +724,9 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       if (!width || !height) return;
       const chapter = Math.min(3, Math.floor(progressNow));
       const live = chapter + travel(progressNow - chapter);
-      // Cards fade out again as the mountain chapter's own content scrolls up over them.
-      const hideAll = 1 - smooth((live - 1.02) / 0.08);
+      // Cards fade out at the end of the climb, before the mountain chapter's intro (which floats over the scene
+      // with no panel behind it) scrolls into view; this follows the raw scroll position so it is never late.
+      const hideAll = 1 - smooth((progressNow - 0.94) / 0.05);
       const narrow = width < 700;
       const keep = smooth((live - keepKey + fadeWindow) / fadeWindow);
       stacks[0][0] = stacks[0][1] = stacks[1][0] = stacks[1][1] = Infinity;
