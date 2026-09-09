@@ -710,11 +710,14 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     // have room for one pair, so there only the first pair is kept when scrolling back above its altitude.
     const shown: boolean[] = new Array(pairCount).fill(false);
     const keepKey = 430 / altitudes[1];
-    // Cards on one side of the mountain are laid out bottom-up like a skyline so they never overlap: a card whose
-    // camp projects into the previous card is pushed up above it, and when the viewport is too short for the stack the
-    // card moves to a second column further out (with hysteresis, so it does not hop between columns while scrolling).
+    // Cards on one side of the mountain are laid out newest-first so they never overlap: the card that is
+    // appearing sits at its camp, older cards are moved down below it (and into a second, outer column when there is
+    // room further out, with hysteresis so they do not hop between columns while scrolling), and an older card that
+    // no longer fits on screen is hidden instead of being drawn over another card.
     const columnOf: number[] = new Array(skillCategories.length).fill(0);
-    const stacks = [[Infinity, Infinity], [Infinity, Infinity]]; // per side (left, right): top edge of the last card per column
+    const stacks = [[0, 0], [0, 0]]; // per side (left, right): bottom edge of the last placed (newer) card per column
+    const alpha: number[] = new Array(skillCategories.length).fill(0);
+    const revealOf: number[] = new Array(skillCategories.length).fill(0);
     const updateSkillCards = () => {
       const width = container.clientWidth;
       const height = container.clientHeight;
@@ -729,51 +732,60 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       // The climb's chapter label (App's .climb-head) fades out as the first pair pops (and stays out while cards are kept).
       const fade = (1 - Math.max(smooth((live - pairKeys[0] + fadeWindow) / fadeWindow), shown[0] ? keep : 0)).toFixed(2);
       if (fade !== climbFade) { climbFade = fade; root.style.setProperty('--climb-fade', fade); }
+      // Pass 1: how visible each card is. A pair only starts to appear once the pair before it is fully in.
+      let previousRaw = 1;
       for (let index = 0; index < campAnchors.length; index++) {
-        const node = cards.current[index];
-        if (!node) continue;
         const pair = Math.floor(index / 2);
         // Fully visible exactly at the pair's altitude; the fade-in runs over the 20 M before it.
-        const raw = smooth((live - pairKeys[pair] + fadeWindow) / fadeWindow);
+        const raw = index % 2 === 0 ? Math.min(smooth((live - pairKeys[pair] + fadeWindow) / fadeWindow), previousRaw >= 0.999 ? 1 : 0) : revealOf[index - 1];
+        revealOf[index] = raw;
+        if (index % 2 === 1) previousRaw = raw;
         if (raw >= 0.999) shown[pair] = true;
         const sticky = shown[pair] && (!narrow || pair === 0);
         const reveal = (sticky ? (narrow ? 1 : 0.4 + 0.6 * raw) * keep : raw) * hideAll;
-        if (reveal <= 0.002) {
-          if (node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
-          continue;
-        }
         // Desktop keeps the current and previous pair readable and dims older ones; narrow screens show one pair at a time.
         const later = pairKeys[pair + (narrow ? 1 : 2)];
         // Narrow screens cross-fade pairs: the old pair fades out exactly while the next fades in, so they never stack
         // (pairs only a few tens of metres apart hand over almost immediately).
         const dim = later === undefined ? 1 : 1 - (narrow ? smooth((live - later + fadeWindow) / fadeWindow) : 0.6 * smooth((live - later + fadeWindow * 0.3) / fadeWindow));
-        if (reveal * dim <= 0.002) {
-          if (node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
-          continue;
-        }
-        projected.copy(campAnchors[index]).applyMatrix4(world.matrixWorld).project(camera);
+        alpha[index] = reveal * dim;
+      }
+      // Pass 2: place the newest visible cards first; older ones stack below them or give way.
+      const gap = 14;
+      stacks[0][0] = stacks[0][1] = stacks[1][0] = stacks[1][1] = 8 - gap;
+      for (let index = campAnchors.length - 1; index >= 0; index--) {
+        const node = cards.current[index];
+        if (!node) continue;
         const side = index % 2 === 0 ? -1 : 1;
-        const gap = 14;
-        const ownWidth = cardWidths[index];
-        const sideWidth = sideWidths[side < 0 ? 0 : 1];
-        let x = ((projected.x + 1) / 2) * width;
-        x = side < 0 ? Math.max(x, ownWidth + gap + 8) : Math.min(x, width - ownWidth - gap - 8);
-        const desired = ((1 - projected.y) / 2) * height - 6;
-        const cardHeight = node.offsetHeight;
         const stack = stacks[side < 0 ? 0 : 1];
-        const fits = (column: number, margin: number) => Math.min(desired, stack[column] - gap) - cardHeight >= 8 + margin;
-        const outerX = x + side * (sideWidth + gap);
-        const outerRoom = side < 0 ? outerX - ownWidth - gap >= 8 : outerX + ownWidth + gap <= width - 8;
-        let column = columnOf[index];
-        if (column === 1 && (!outerRoom || fits(0, 40))) column = 0;
-        if (column === 0 && !fits(0, 0) && outerRoom && fits(1, 0)) column = 1;
-        columnOf[index] = column;
-        const y = Math.max(Math.min(desired, stack[column] - gap), cardHeight + 8);
-        stack[column] = y - cardHeight;
-        const cx = column === 1 ? outerX : x;
-        node.style.visibility = 'visible';
-        node.style.opacity = (reveal * dim).toFixed(3);
-        node.style.transform = `translate3d(${(cx + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * reveal).toFixed(3)})`;
+        let placed = false;
+        if (alpha[index] > 0.002) {
+          projected.copy(campAnchors[index]).applyMatrix4(world.matrixWorld).project(camera);
+          const ownWidth = cardWidths[index];
+          const sideWidth = sideWidths[side < 0 ? 0 : 1];
+          const cardHeight = node.offsetHeight;
+          let x = ((projected.x + 1) / 2) * width;
+          x = side < 0 ? Math.max(x, ownWidth + gap + 8) : Math.min(x, width - ownWidth - gap - 8);
+          const desired = ((1 - projected.y) / 2) * height - 6; // bottom edge of the card at its camp
+          const bottomAt = (column: number) => Math.max(desired, stack[column] + gap + cardHeight);
+          const fits = (column: number, margin: number) => bottomAt(column) <= height - 8 - margin;
+          const outerX = x + side * (sideWidth + gap);
+          const outerRoom = side < 0 ? outerX - ownWidth - gap >= 8 : outerX + ownWidth + gap <= width - 8;
+          let column = columnOf[index];
+          if (column === 1 && (!outerRoom || fits(0, 40))) column = 0;
+          if (column === 0 && !fits(0, 0) && outerRoom && fits(1, 0)) column = 1;
+          columnOf[index] = column;
+          if (fits(column, 0)) {
+            const y = bottomAt(column);
+            stack[column] = y;
+            const cx = column === 1 ? outerX : x;
+            node.style.visibility = 'visible';
+            node.style.opacity = alpha[index].toFixed(3);
+            node.style.transform = `translate3d(${(cx + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * revealOf[index]).toFixed(3)})`;
+            placed = true;
+          }
+        }
+        if (!placed && node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
       }
     };
 
