@@ -842,6 +842,9 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         }
         // Pass 2: place the newest visible cards first; older ones stack below them or give way.
         const gap = 14;
+        // Extra breathing room between the left and right cards: each card is pushed a further `spread` px away
+        // from the trail, up to 135 px on wide viewports and none on phones (where both cards must still fit).
+        const spread = Math.min(135, Math.max(0, (width - 760) * 0.32));
         stacks[0][0] = stacks[0][1] = stacks[1][0] = stacks[1][1] = 8 - gap;
         for (let index = campAnchors.length - 1; index >= 0; index--) {
           const node = cards.current[index];
@@ -855,12 +858,15 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
             const sideWidth = sideWidths[side < 0 ? 0 : 1];
             const cardHeight = cardHeights[index] || node.offsetHeight;
             let x = ((projected.x + 1) / 2) * width;
-            x = side < 0 ? Math.max(x, ownWidth + gap + 8) : Math.min(x, width - ownWidth - gap - 8);
+            x = side < 0 ? Math.max(x, ownWidth + gap + spread + 8) : Math.min(x, width - ownWidth - gap - spread - 8);
+            // Left and right cards never meet: each keeps to its own half of the viewport, so their inner edges
+            // stay at least 2 × (gap + spread) apart even where two wide cards cannot fit side by side.
+            x = side < 0 ? Math.min(x, width / 2) : Math.max(x, width / 2);
             const desired = ((1 - projected.y) / 2) * height - 6; // bottom edge of the card at its camp
             const bottomAt = (column: number) => Math.max(desired, stack[column] + gap + cardHeight);
             const fits = (column: number, margin: number) => bottomAt(column) <= height - 8 - margin;
             const outerX = x + side * (sideWidth + gap);
-            const outerRoom = side < 0 ? outerX - ownWidth - gap >= 8 : outerX + ownWidth + gap <= width - 8;
+            const outerRoom = side < 0 ? outerX - ownWidth - gap - spread >= 8 : outerX + ownWidth + gap + spread <= width - 8;
             let column = columnOf[index];
             if (column === 1 && (!outerRoom || fits(0, 40))) column = 0;
             if (column === 0 && !fits(0, 0) && outerRoom && fits(1, 0)) column = 1;
@@ -876,7 +882,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
               const cx = column === 1 ? outerX : x;
               node.style.visibility = 'visible';
               node.style.opacity = (easedAlpha[index] * exit).toFixed(3);
-              node.style.transform = `translate3d(${(cx + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * easedReveal[index]).toFixed(3)})`;
+              node.style.transform = `translate3d(${(cx + side * (gap + spread)).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * easedReveal[index]).toFixed(3)})`;
               placed = true;
             }
           }
