@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import * as THREE from 'three';
 import { createSkyFlight, flightBoarding, flightEnd, flightStart } from '../src/SkyFlight';
 
-test('flight climbs continuously, uses five batches, and pauses its propeller and birds', () => {
+test('flight climbs continuously, uses six batches, and pauses its propeller and birds', () => {
   const materials = new Map<string, THREE.Material>();
   const start = new THREE.Vector3(-0.58, 13.62, -1.98);
   const end = new THREE.Vector3(3.9, 23.05, -1.8);
@@ -27,11 +27,11 @@ test('flight climbs continuously, uses five batches, and pauses its propeller an
   flight.root.traverse(object => {
     if (object instanceof THREE.Mesh) {
       draws++;
-      triangles += object.geometry.getAttribute('position').count / 3 * (object instanceof THREE.InstancedMesh ? object.count : 1);
+      triangles += (object.geometry.index?.count ?? object.geometry.getAttribute('position').count) / 3 * (object instanceof THREE.InstancedMesh ? object.count : 1);
     }
   });
-  expect(draws).toBe(5);
-  expect(triangles).toBeLessThan(1500);
+  expect(draws).toBe(6);
+  expect(triangles).toBeLessThan(1800);
   flight.sample(1.75, point, tangent);
   flight.update(1.75, 1, false, point);
   expect(flight.root.visible).toBe(true);

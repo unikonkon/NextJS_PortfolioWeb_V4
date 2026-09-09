@@ -16,9 +16,9 @@ export function createSpaceFlight(start: THREE.Vector3, end: THREE.Vector3, mate
   const spacecraft = new THREE.Group();
   spacecraft.name = 'passenger-spacecraft';
   root.add(spacecraft);
-  const surface = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, flatShading: true });
+  const surface = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.4 });
   const flameMaterial = new THREE.MeshBasicMaterial({ color: '#9ee9ff', transparent: true, opacity: 0.85, depthWrite: false });
-  const canopyMaterial = new THREE.MeshBasicMaterial({ color: '#bdefff', transparent: true, opacity: 0.12, depthWrite: false });
+  const canopyMaterial = new THREE.MeshStandardMaterial({ color: '#bdefff', transparent: true, opacity: 0.16, roughness: 0.12, metalness: 0.25, depthWrite: false });
   materials.set('spacecraft-surface', surface);
   materials.set('spacecraft-flame', flameMaterial);
   materials.set('spacecraft-canopy', canopyMaterial);
@@ -39,9 +39,9 @@ export function createSpaceFlight(start: THREE.Vector3, end: THREE.Vector3, mate
     };
   }
   const frame = batch();
-  frame.add(new THREE.CylinderGeometry(0.48, 0.32, 0.75, 12), '#eeeada', [0, -0.27, -0.24]);
-  frame.add(new THREE.CylinderGeometry(0.36, 0.46, 0.16, 12), '#6f9caa', [0, 1.07, -0.24]);
-  frame.add(new THREE.ConeGeometry(0.36, 0.64, 12), '#db9872', [0, 1.47, -0.24]);
+  frame.add(new THREE.CylinderGeometry(0.48, 0.32, 0.75, 32), '#eeeada', [0, -0.27, -0.24]);
+  frame.add(new THREE.CylinderGeometry(0.36, 0.46, 0.16, 32), '#6f9caa', [0, 1.07, -0.24]);
+  frame.add(new THREE.ConeGeometry(0.36, 0.64, 32), '#db9872', [0, 1.47, -0.24]);
   frame.add(new THREE.BoxGeometry(0.65, 0.87, 0.12), '#446579', [0, 0.59, -0.59]);
   frame.add(new THREE.BoxGeometry(0.3, 0.07, 0.28), '#41556a', [0, 0.29, -0.06]);
   frame.add(new THREE.TorusGeometry(0.41, 0.035, 5, 24), '#eadab5', [0, 0.61, 0.07], [1, 1.12, 1]);
@@ -50,9 +50,16 @@ export function createSpaceFlight(start: THREE.Vector3, end: THREE.Vector3, mate
     frame.add(new THREE.BoxGeometry(0.13, 0.62, 0.54).rotateZ(side * -0.38), '#db9872', [side * 0.51, -0.44, -0.24]);
     frame.add(new THREE.CylinderGeometry(0.11, 0.15, 0.15, 8), '#41556a', [side * 0.25, -0.72, -0.24]);
   }
+  // Panel seams and fasteners are part of the same merged hull, with no extra draw calls.
+  for (let band = 0; band < 2; band++) frame.add(new THREE.TorusGeometry(0.42 - band * 0.045, 0.012, 4, 24).rotateX(Math.PI / 2), '#526777', [0, -0.2 - band * 0.24, -0.24]);
+  for (const side of [-1, 1]) for (let rivet = 0; rivet < 4; rivet++) frame.add(new THREE.SphereGeometry(0.014, 6, 4), '#a0afb5', [side * 0.405, 0.26 + rivet * 0.21, -0.095]);
+  frame.add(new THREE.BoxGeometry(0.2, 0.06, 0.065), '#354c58', [0, 0.38, 0.085]);
+  frame.add(new THREE.BoxGeometry(0.085, 0.025, 0.006), '#89c5d1', [0, 0.398, 0.121]);
+  for (const side of [-1, 1]) frame.add(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 6).rotateX(-0.35), '#a9bdc4', [side * 0.09, 0.42, 0.13]);
   const hull = new THREE.Mesh(frame.finish(), surface);
+  hull.castShadow = hull.receiveShadow = true;
   spacecraft.add(hull);
-  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), canopyMaterial);
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), canopyMaterial);
   canopy.position.set(0, 0.61, -0.1);
   canopy.scale.set(0.44, 0.48, 0.34);
   spacecraft.add(canopy);
@@ -60,6 +67,7 @@ export function createSpaceFlight(start: THREE.Vector3, end: THREE.Vector3, mate
   for (let step = 0; step < 3; step++) rampFrame.add(new THREE.BoxGeometry(0.46, 0.08, 0.28), '#a9bcc0', [0, -0.05 - step * 0.1, 0.24 + step * 0.25]);
   const ramp = new THREE.Mesh(rampFrame.finish(), surface);
   ramp.name = 'boarding-steps';
+  ramp.castShadow = ramp.receiveShadow = true;
   spacecraft.add(ramp);
   const exhaust = new THREE.Mesh(new THREE.ConeGeometry(0.23, 1.2, 8).rotateZ(Math.PI).translate(0, -0.6, 0), flameMaterial);
   exhaust.name = 'spacecraft-exhaust';

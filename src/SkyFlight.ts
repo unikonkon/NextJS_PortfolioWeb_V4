@@ -7,7 +7,7 @@ export const flightEnd = 2.02;
 export const flightBoarding = (progress: number) => smooth((progress - 1.3) / 0.14) * (1 - smooth((progress - 2.08) / 0.15));
 type Vec = [number, number, number];
 
-/** One airframe, one propeller and three instanced bird parts; no external assets or animation loop. */
+/** One airframe, one windscreen, one propeller and three instanced bird parts; no external assets or animation loop. */
 export function createSkyFlight(start: THREE.Vector3, end: THREE.Vector3, materials: Map<string, THREE.Material>) {
   const root = new THREE.Group();
   root.name = 'sky-flight';
@@ -15,7 +15,7 @@ export function createSkyFlight(start: THREE.Vector3, end: THREE.Vector3, materi
   const aircraft = new THREE.Group();
   aircraft.name = 'passenger-airplane';
   root.add(aircraft);
-  const surface = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, flatShading: true, side: THREE.DoubleSide });
+  const surface = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.36, metalness: 0.25, side: THREE.DoubleSide });
   materials.set('sky-flight-surfaces', surface);
   function batch() {
     const pieces: THREE.BufferGeometry[] = [];
@@ -34,17 +34,25 @@ export function createSkyFlight(start: THREE.Vector3, end: THREE.Vector3, materi
     };
   }
   const frame = batch();
-  frame.add(new THREE.SphereGeometry(1, 10, 6), '#efcf83', [0, 0.32, 0.05], [0.29, 0.22, 1.05]);
-  frame.add(new THREE.BoxGeometry(2.75, 0.065, 0.48), '#f4edcf', [0, 0.31, 0.12]);
+  frame.add(new THREE.SphereGeometry(1, 24, 12), '#efcf83', [0, 0.32, 0.05], [0.29, 0.22, 1.05]);
+  frame.add(new THREE.SphereGeometry(1, 12, 6), '#f4edcf', [0, 0.31, 0.12], [1.375, 0.045, 0.24]);
   for (const side of [-1, 1]) frame.add(new THREE.BoxGeometry(0.22, 0.07, 0.48), '#749a88', [side * 1.25, 0.315, 0.12]);
   frame.add(new THREE.BoxGeometry(0.92, 0.055, 0.3), '#749a88', [0, 0.36, -0.78]);
   frame.add(new THREE.BoxGeometry(0.065, 0.43, 0.34), '#f4edcf', [0, 0.53, -0.82]);
   frame.add(new THREE.BoxGeometry(0.33, 0.045, 0.38), '#526e69', [0, 0.52, -0.08]);
-  frame.add(new THREE.BoxGeometry(0.3, 0.17, 0.035), '#9fc8ce', [0, 0.57, 0.24]);
+  frame.add(new THREE.BoxGeometry(0.3, 0.025, 0.045), '#749a88', [0, 0.5, 0.24]);
   frame.add(new THREE.SphereGeometry(0.15, 8, 6), '#749a88', [0, 0.33, 1.04]);
+  frame.add(new THREE.BoxGeometry(0.16, 0.055, 0.05), '#35494d', [0, 0.54, 0.16]);
+  frame.add(new THREE.BoxGeometry(0.05, 0.025, 0.006), '#badbce', [0, 0.552, 0.131]);
   const airframe = new THREE.Mesh(frame.finish(), surface);
   airframe.castShadow = airframe.receiveShadow = true;
   aircraft.add(airframe);
+  const glassMaterial = new THREE.MeshStandardMaterial({ color: '#bfdee3', roughness: 0.12, metalness: 0.12, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+  materials.set('aircraft-windscreen', glassMaterial);
+  const windscreen = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8, 0, Math.PI, 0, Math.PI / 2), glassMaterial);
+  windscreen.name = 'aircraft-windscreen';
+  windscreen.position.set(0, 0.5, 0.2); windscreen.scale.set(0.83, 0.8, 0.55);
+  aircraft.add(windscreen);
   const propeller = new THREE.Group();
   propeller.name = 'airplane-propeller';
   propeller.position.set(0, 0.33, 1.17);
@@ -57,7 +65,7 @@ export function createSkyFlight(start: THREE.Vector3, end: THREE.Vector3, materi
   flock.name = 'flying-birds';
   root.add(flock);
   const bird = batch();
-  bird.add(new THREE.IcosahedronGeometry(1, 0), '#f4f2df', [0, 0, 0], [0.065, 0.07, 0.16]);
+  bird.add(new THREE.SphereGeometry(1, 8, 6), '#f4f2df', [0, 0, 0], [0.065, 0.07, 0.16]);
   bird.add(new THREE.ConeGeometry(0.035, 0.09, 4).rotateX(Math.PI / 2), '#d7ae62', [0, 0, 0.19]);
   const wing = batch();
   const wingShape = new THREE.BufferGeometry();

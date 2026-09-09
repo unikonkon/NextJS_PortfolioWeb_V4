@@ -8,6 +8,12 @@ export const altitudes = [0, 2400, 12000, 100000, 400000];
 export const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 export const smooth = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
 
+/** Follow distance at walking speed, capped at two gait cycles/second during fast scrolls. */
+export function advanceRunStride(stride: number, distance: number, seconds: number, boarding: number, paused: boolean) {
+  if (paused) return stride;
+  return stride + Math.min(Math.max(0, distance) * 9, Math.max(0, seconds) * Math.PI * 4) * (1 - clamp(boarding, 0, 1));
+}
+
 /** Stable terrain variation: reloading or resizing never rearranges the mountain details. */
 export const terrainNoise = (seed: number) => {
   const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
@@ -25,6 +31,15 @@ export function mountainRadiusAt(radius: number, elevation: number, angle: numbe
 
 export const mountainSnowline = (angle: number, seed = 0) =>
   0.77 + Math.sin(angle * 3 + seed) * 0.045 + Math.cos(angle * 7 - seed) * 0.025;
+
+const trailOffsets = [-0.28, 0.55, -0.55, 0];
+/** Two rounded switchbacks across the whole climb, independent of the number of skill camps. */
+export function mountainTrailAngle(elevation: number, facing: number) {
+  const progress = clamp(elevation, 0, 1) * 3;
+  const leg = Math.min(2, Math.floor(progress));
+  return facing + trailOffsets[leg] + (trailOffsets[leg + 1] - trailOffsets[leg]) * smooth(progress - leg);
+}
+
 /** Inside a chapter the camera drifts slowly (first 70% of its scroll); the real travel happens in the gap before the next chapter. */
 export const travel = (f: number) => (f < 0.7 ? (f / 0.7) * 0.2 : 0.2 + 0.8 * smooth((f - 0.7) / 0.3));
 /** Backdrop colour blend: hold the chapter colour, then cross-fade during the last 40%. */
@@ -39,15 +54,18 @@ export function formatAltitude(metres: number) {
   return metres >= 100000 ? `${Math.round(metres / 1000)} KM` : `${(Math.round(metres / 10) * 10).toLocaleString('en-US')} M`;
 }
 
-/** Scroll position → continuous chapter progress (0 = start of ground … 3.7 = end of space). */
-export function measureProgress() {
-  const anchor = window.scrollY + window.innerHeight * 0.38;
-  const bounds = chapterIds.map(id => {
+export type ChapterBounds = ({ top: number; bottom: number } | null)[];
+export function readChapterBounds(): ChapterBounds {
+  return chapterIds.map(id => {
     const element = document.getElementById(id);
     if (!element) return null;
     const rect = element.getBoundingClientRect();
     return { top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY };
   });
+}
+
+/** A cached layout keeps scroll/animation work independent of DOM measurements. */
+export function measureProgress(bounds = readChapterBounds(), anchor = window.scrollY + window.innerHeight * 0.38) {
   for (let index = 0; index < bounds.length; index++) {
     const section = bounds[index];
     if (!section) continue;

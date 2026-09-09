@@ -10,7 +10,7 @@ export function createMountainFarm(materials: Map<string, THREE.Material>) {
   root.name = 'mountain-farm';
   root.position.set(2.7, 0.035, 3);
   root.rotation.y = Math.atan2(11, 14);
-  const surface = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
+  const surface = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 });
   materials.set('farm-surfaces', surface);
 
   function batch() {
@@ -95,9 +95,9 @@ export function createMountainFarm(materials: Map<string, THREE.Material>) {
     root.add(instances);
   }
   const cabbage = batch();
-  cabbage.add(new THREE.IcosahedronGeometry(1, 0), '#527847', [-0.055, 0.075, 0], [0.13, 0.075, 0.12]);
-  cabbage.add(new THREE.IcosahedronGeometry(1, 0), '#73a453', [0.055, 0.09, 0], [0.12, 0.08, 0.13]);
-  cabbage.add(new THREE.IcosahedronGeometry(1, 0), '#a6c76d', [0, 0.135, 0], [0.1, 0.105, 0.1]);
+  cabbage.add(new THREE.SphereGeometry(1, 8, 4), '#527847', [-0.055, 0.075, 0], [0.13, 0.075, 0.12]);
+  cabbage.add(new THREE.SphereGeometry(1, 8, 4), '#73a453', [0.055, 0.09, 0], [0.12, 0.08, 0.13]);
+  cabbage.add(new THREE.SphereGeometry(1, 8, 4), '#a6c76d', [0, 0.135, 0], [0.1, 0.105, 0.1]);
   crops(cabbage.finish(), 3, 5, -1.12, 'vegetable-crops');
   const rice = batch();
   for (let stalk = 0; stalk < 3; stalk++) {
@@ -115,7 +115,7 @@ export function createMountainFarm(materials: Map<string, THREE.Material>) {
   root.add(farmer);
   const legs = batch();
   for (const side of [-1, 1]) {
-    legs.box([0.13, 0.32, 0.14], '#455d66', [side * 0.1, 0.24, 0]);
+    legs.add(new THREE.CapsuleGeometry(0.065, 0.19, 2, 6), '#455d66', [side * 0.1, 0.24, 0]);
     legs.box([0.15, 0.12, 0.23], '#665440', [side * 0.1, 0.075, 0.035]);
   }
   solid(legs.finish(), farmer, 'gardener-legs');
@@ -124,10 +124,10 @@ export function createMountainFarm(materials: Map<string, THREE.Material>) {
   torso.position.y = 0.4;
   farmer.add(torso);
   const upper = batch();
-  upper.box([0.34, 0.34, 0.21], '#659087', [0, 0.17, 0]);
-  upper.add(new THREE.SphereGeometry(0.13, 8, 6), '#dfb58b', [0, 0.45, 0.015]);
-  upper.add(new THREE.CylinderGeometry(0.26, 0.26, 0.035, 10), '#d9b879', [0, 0.555, 0]);
-  upper.add(new THREE.ConeGeometry(0.19, 0.14, 10), '#e9cc8b', [0, 0.635, 0]);
+  upper.add(new THREE.SphereGeometry(1, 12, 8), '#659087', [0, 0.17, 0], [0.19, 0.22, 0.13]);
+  upper.add(new THREE.SphereGeometry(0.13, 12, 8), '#dfb58b', [0, 0.45, 0.015]);
+  upper.add(new THREE.CylinderGeometry(0.26, 0.26, 0.035, 20), '#d9b879', [0, 0.555, 0]);
+  upper.add(new THREE.ConeGeometry(0.19, 0.14, 20), '#e9cc8b', [0, 0.635, 0]);
   solid(upper.finish(), torso, 'gardener-shirt-and-hat');
   const arms = new THREE.Group();
   arms.name = 'gardener-arms';
@@ -135,8 +135,8 @@ export function createMountainFarm(materials: Map<string, THREE.Material>) {
   torso.add(arms);
   const hands = batch();
   for (const side of [-1, 1]) {
-    hands.box([0.09, 0.29, 0.09], '#659087', [side * 0.2, -0.11, 0.1], [-0.75, 0, 0]);
-    hands.box([0.075, 0.23, 0.075], '#dfb58b', [side * 0.16, -0.26, 0.25], [-0.9, 0, side * -0.2]);
+    hands.add(new THREE.CapsuleGeometry(0.045, 0.2, 2, 6), '#659087', [side * 0.2, -0.11, 0.1], [1, 1, 1], [-0.75, 0, 0]);
+    hands.add(new THREE.CapsuleGeometry(0.0375, 0.155, 2, 6), '#dfb58b', [side * 0.16, -0.26, 0.25], [1, 1, 1], [-0.9, 0, side * -0.2]);
   }
   hands.add(new THREE.CylinderGeometry(0.022, 0.022, 1.03, 5), '#a68251', [0, -0.36, 0.38], [1, 1, 1], [-0.42, 0, 0]);
   hands.box([0.29, 0.035, 0.14], '#66716b', [0, -0.83, 0.59]);
