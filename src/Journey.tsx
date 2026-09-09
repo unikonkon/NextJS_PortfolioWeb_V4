@@ -685,6 +685,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     // A card whose chips wrap past two rows at the base width grows 70% wider so its skills stay scannable; on
     // viewports without room for two widened cards side by side the growth is scaled down (none on phones).
     const cardWidths: number[] = new Array(skillCategories.length).fill(cardWidth);
+    const cardHeights: number[] = new Array(skillCategories.length).fill(0);
     const sideWidths = [cardWidth, cardWidth]; // widest card per side (left, right): the outer column sits beyond it
     const measureCards = () => {
       const room = (window.innerWidth - 44) / (2 * cardWidth);
@@ -700,6 +701,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         cardWidths[index] = width;
         node.style.width = `${width}px`;
         node.classList.toggle('wide', width !== cardWidth);
+        cardHeights[index] = node.offsetHeight;
         sideWidths[index % 2] = Math.max(sideWidths[index % 2], width);
       });
     };
@@ -718,7 +720,12 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
     const stacks = [[0, 0], [0, 0]]; // per side (left, right): bottom edge of the last placed (newer) card per column
     const alpha: number[] = new Array(skillCategories.length).fill(0);
     const revealOf: number[] = new Array(skillCategories.length).fill(0);
-    const updateSkillCards = () => {
+    // Scroll decides what each card should be; these follow it with a short time constant (~180 ms) so a card
+    // that pops in on a fast flick (its 20 M window can be a dozen pixels of scroll on a phone) still fades and
+    // scales in smoothly, and the cards it pushes aside slide instead of jumping.
+    const easedAlpha: number[] = new Array(skillCategories.length).fill(0);
+    const easedReveal: number[] = new Array(skillCategories.length).fill(0);
+    const updateSkillCards = (delta: number) => {
       const width = container.clientWidth;
       const height = container.clientHeight;
       if (!width || !height) return;
@@ -750,6 +757,11 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         // (pairs only a few tens of metres apart hand over almost immediately).
         const dim = later === undefined ? 1 : 1 - (narrow ? smooth((live - later + fadeWindow) / fadeWindow) : 0.6 * smooth((live - later + fadeWindow * 0.3) / fadeWindow));
         alpha[index] = reveal * dim;
+        const k = pauseRef.current ? 1 : 1 - Math.exp(-delta / 180);
+        easedAlpha[index] += (alpha[index] - easedAlpha[index]) * k;
+        if (Math.abs(alpha[index] - easedAlpha[index]) < 0.002) easedAlpha[index] = alpha[index];
+        easedReveal[index] += (revealOf[index] - easedReveal[index]) * k;
+        if (Math.abs(revealOf[index] - easedReveal[index]) < 0.002) easedReveal[index] = revealOf[index];
       }
       // Pass 2: place the newest visible cards first; older ones stack below them or give way.
       const gap = 14;
@@ -760,11 +772,11 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const side = index % 2 === 0 ? -1 : 1;
         const stack = stacks[side < 0 ? 0 : 1];
         let placed = false;
-        if (alpha[index] > 0.002) {
+        if (easedAlpha[index] > 0.002) {
           projected.copy(campAnchors[index]).applyMatrix4(world.matrixWorld).project(camera);
           const ownWidth = cardWidths[index];
           const sideWidth = sideWidths[side < 0 ? 0 : 1];
-          const cardHeight = node.offsetHeight;
+          const cardHeight = cardHeights[index] || node.offsetHeight;
           let x = ((projected.x + 1) / 2) * width;
           x = side < 0 ? Math.max(x, ownWidth + gap + 8) : Math.min(x, width - ownWidth - gap - 8);
           const desired = ((1 - projected.y) / 2) * height - 6; // bottom edge of the card at its camp
@@ -776,13 +788,18 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           if (column === 1 && (!outerRoom || fits(0, 40))) column = 0;
           if (column === 0 && !fits(0, 0) && outerRoom && fits(1, 0)) column = 1;
           columnOf[index] = column;
-          if (fits(column, 0)) {
-            const y = bottomAt(column);
-            stack[column] = y;
+          const y = bottomAt(column);
+          // How far this card is pushed below the viewport decides how far it has faded out (never a hard cut).
+          const exit = Math.max(0, Math.min(1, 1 - (y - (height - 8)) / 80));
+          if (exit > 0.002) {
+            // While a card is still faint it only claims part of its slot, so the cards below slide down with its
+            // fade-in instead of jumping the moment it appears (fully claimed once it is as visible as a dimmed card).
+            const claimed = Math.min(1, easedAlpha[index] / 0.4);
+            stack[column] = y - (1 - claimed) * (cardHeight + gap);
             const cx = column === 1 ? outerX : x;
             node.style.visibility = 'visible';
-            node.style.opacity = alpha[index].toFixed(3);
-            node.style.transform = `translate3d(${(cx + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * revealOf[index]).toFixed(3)})`;
+            node.style.opacity = (easedAlpha[index] * exit).toFixed(3);
+            node.style.transform = `translate3d(${(cx + side * gap).toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(${side < 0 ? '-100%' : '0'}, -100%) scale(${(0.86 + 0.14 * easedReveal[index]).toFixed(3)})`;
             placed = true;
           }
         }
@@ -921,7 +938,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const spaceChapter = Math.min(3, Math.floor(runnerState.progress));
       spaceEffects.update(spaceChapter + travel(runnerState.progress - spaceChapter), elapsed, pauseRef.current, camera, container.clientWidth);
       renderer.render(scene, camera);
-      updateSkillCards();
+      updateSkillCards(delta);
     };
     resize();
     // Chip wrapping depends on the web fonts, so re-measure the cards once they are in.
