@@ -73,14 +73,17 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         setFailed(true);
         return;
       }
-      let pixelRatio = Math.min(window.devicePixelRatio, window.innerWidth <= 800 ? 1.35 : 1.75);
+      // Quality profile decided once at start-up. Phones/tablets render at 1x with cheap shadows and fewer shadow
+      // casters, so the first scroll is already smooth instead of waiting for the adaptive resolution drop below.
+      const mobile = window.innerWidth <= 800 || (window.matchMedia?.('(pointer: coarse)').matches ?? false);
+      let pixelRatio = Math.min(window.devicePixelRatio, mobile ? 1 : 1.75);
       renderer.setPixelRatio(pixelRatio);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.12;
       renderer.setClearColor(0x000000, 0);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
       renderer.domElement.style.visibility = 'hidden';
       container.appendChild(renderer.domElement);
       // Development-only counters let browser tests inspect the actual GPU workload without a UI overlay.
@@ -102,7 +105,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       scene.add(hemisphere);
       const sun = new THREE.DirectionalLight(0xfff4d9, 3.1);
       sun.castShadow = true;
-      sun.shadow.mapSize.set(1024, 1024);
+      sun.shadow.mapSize.set(mobile ? 512 : 1024, mobile ? 512 : 1024);
       Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 0.5, far: 80 });
       sun.shadow.bias = -0.00012;
       sun.shadow.normalBias = 0.018;
@@ -292,6 +295,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const surface = new THREE.Mesh(geometry, surfaceMaterial);
         surface.position.set(...base);
         surface.castShadow = surface.receiveShadow = true;
+        surface.name = 'mountain-surface';
         world.add(surface);
         surface.updateMatrixWorld(true);
         const mountain = { surface, base, height, radius, seed };
@@ -861,6 +865,15 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays,
         ...clouds.map(item => item.group), ...floaters.map(item => item.object), ...flags,
       ]));
+      if (mobile) {
+        // Only the mountains and the runner cast shadows on phones; trees, rocks, camps, farm, aircraft and the
+        // batched scenery still receive them, which keeps the look while halving the shadow pass.
+        const keep = new Set<THREE.Object3D>();
+        runner.traverse(object => keep.add(object));
+        world.traverse(object => { if (object.castShadow && object.name !== 'mountain-surface' && !keep.has(object)) object.castShadow = false; });
+        travelerLighting.key.castShadow = false; // the runner's own key light would be a second shadow pass
+      }
+      if (diagnostics) { let casters = 0; scene.traverse(object => { if (object.castShadow && (object as THREE.Mesh).isMesh) casters++; }); Object.assign(diagnostics, { shadowCasters: casters, shadowMap: sun.shadow.mapSize.x, soft: renderer.shadowMap.type === THREE.PCFSoftShadowMap }); }
 
       /* ---------- Interaction & frame loop ---------- */
       const pointer = { x: 0, y: 0 };

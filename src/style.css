@@ -534,3 +534,18 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
   .space-section .chapter-intro { text-align: center; }
   .space-section .chapter-intro h2 { margin-inline: auto; }
 }
+/* Phones: no backdrop-filter anywhere over the live WebGL canvas. Every blurred panel forces the browser to read the
+   3D frame back and blur it again on each scroll frame, which is the single biggest cause of stutter on mobile.
+   Slightly more opaque fills stand in for the blur. */
+@media (max-width: 800px) {
+  .site-header, .main-nav, .hero-copy, .hero-bottom, .tech-strip, .ground-story, .mountain-section, .sky-section, .space-section, .chapter-content, .journey-status, .scene-tag, .toolkit, .climb-note, .skill-card, .chapter-intro h2, .chapter-intro .section-description, .chapter-intro .chapter-heading .eyebrow, .chapter-intro .altitude, .project-dialog::backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .site-header, .main-nav { background: #f6f8eff2; }
+  .app[data-chapter=space] .site-header, .app[data-chapter=space] .main-nav { background: #172c3df2; }
+  .hero-bottom, .tech-strip, .ground-story, .mountain-section, .sky-section { background: #f7f8efd6; }
+  .chapter-content { background: #f4f7edf7; }
+  .sky-section .chapter-content { background: #f1f7f3f7; }
+  .climb-note { background: #f3f7eaf2; }
+  .toolkit { background: #f2f6ebee; }
+  .journey-status { background: #f6f8eff0; }
+  .app[data-chapter=space] .journey-status { background: #111b2ef0; }
+}
