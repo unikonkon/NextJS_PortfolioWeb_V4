@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { clamp, smooth } from './journeyMath';
+import { altitudes, clamp, smooth } from './journeyMath';
 
-export const flightStart = 1.45;
-export const flightEnd = 2.02;
-export const flightBoarding = (progress: number) => smooth((progress - 1.3) / 0.14) * (1 - smooth((progress - 2.08) / 0.15));
+export const flightTakeoffAltitude = 10000;
+// This module uses world progress (chapter + travel(fraction)), the same scale as the altimeter.
+export const flightStart = 1 + (flightTakeoffAltitude - altitudes[1]) / (altitudes[2] - altitudes[1]);
+export const flightEnd = 2.2;
+export const flightRevealStart = flightStart - 0.24;
+export const flightBoarding = (progress: number) => smooth((progress - (flightStart - 0.12)) / 0.11) * (1 - smooth((progress - (flightEnd + 0.02)) / 0.12));
 type Vec = [number, number, number];
 
 /** One airframe, one windscreen, one propeller and three instanced bird parts; no external assets or animation loop. */
@@ -99,16 +102,17 @@ export function createSkyFlight(start: THREE.Vector3, end: THREE.Vector3, materi
   return {
     root, aircraft, sample,
     update(progress: number, time: number, paused: boolean, position: THREE.Vector3) {
-      const reveal = smooth((progress - 1.16) / 0.12) * (1 - smooth((progress - 2.28) / 0.07));
+      const reveal = smooth((progress - flightRevealStart) / 0.12) * (1 - smooth((progress - 2.28) / 0.07));
       root.visible = reveal > 0.001;
       if (!root.visible) return;
       if (!paused) ambientTime = time;
       const t = clamp((progress - flightStart) / (flightEnd - flightStart), 0, 1);
       curve.getTangent(smooth(t), direction);
       // Keep a readable aircraft attitude while the story's vertical route climbs more steeply.
-      direction.y = Math.min(direction.y, Math.hypot(direction.x, direction.z) * 0.35);
+      const airborne = smooth(t / 0.18) * (1 - smooth((t - 0.82) / 0.18));
+      direction.y = Math.min(direction.y, Math.hypot(direction.x, direction.z) * 0.35) * airborne;
       direction.normalize();
-      aircraft.position.copy(position);
+      aircraft.position.copy(progress <= flightStart ? start : position);
       aircraft.scale.setScalar(reveal);
       aircraft.quaternion.setFromRotationMatrix(heading.lookAt(direction, origin, up));
       aircraft.rotateZ(Math.sin(t * Math.PI * 2) * 0.12);

@@ -7,7 +7,7 @@ import { batchStaticScene, createPineCrown, createPlanet, createRockRelief, nois
 import { advanceRunStride, altitudes, blend, clamp, measureProgress, readChapterBounds, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
 import { createMountainFarm } from './MountainFarm';
-import { createSkyFlight, flightBoarding, flightEnd, flightStart } from './SkyFlight';
+import { createSkyFlight, flightBoarding, flightEnd, flightRevealStart, flightStart } from './SkyFlight';
 import { createSpaceEffects, createSpaceFlight, spaceBoarding, spaceBoardingStart } from './SpaceFlight';
 
 /**
@@ -84,7 +84,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       renderer.domElement.style.visibility = 'hidden';
       container.appendChild(renderer.domElement);
       // Development-only counters let browser tests inspect the actual GPU workload without a UI overlay.
-      const diagnostics = import.meta.env.DEV ? { calls: 0, triangles: 0, frames: 0, pixelRatio, cpuMs: 0 } : null;
+      const diagnostics = import.meta.env.DEV ? { calls: 0, triangles: 0, frames: 0, pixelRatio, cpuMs: 0, aircraftY: 0, passengerY: 0 } : null;
       if (diagnostics) Object.defineProperty(renderer.domElement, 'journeyDiagnostics', { value: diagnostics });
 
       const scene = new THREE.Scene();
@@ -603,17 +603,18 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const point = trailPoint(height);
         route.push([cForHeight(height), point[0], point[1] + 0.06, point[2]]);
       }
-      rest(summitKey + 0.01, 1.45, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
+      rest(summitKey + 0.01, flightStart, summit[0] + 0.3, summit[1] + 0.02, summit[2] + 0.1);
       const boardingPoint = route[route.length - 1];
       const flight = createSkyFlight(new THREE.Vector3(boardingPoint[1], boardingPoint[2], boardingPoint[3]), new THREE.Vector3(3.9, 19.05 + lift, -1.8), materials);
       world.add(flight.root);
       const flightPoint = new THREE.Vector3();
       const flightTangent = new THREE.Vector3();
-      for (const progress of [1.6, 1.75, 1.85, 1.95]) {
+      for (const fraction of [0.2, 0.45, 0.7, 0.9]) {
+        const progress = flightStart + (flightEnd - flightStart) * fraction;
         flight.sample(progress, flightPoint, flightTangent);
         route.push([progress, flightPoint.x, flightPoint.y, flightPoint.z]);
       }
-      rest(2.02, 2.35, 3.9, 19.05 + lift, -1.8);
+      rest(flightEnd, 2.35, 3.9, 19.05 + lift, -1.8);
       const spaceDock = route[route.length - 1];
       const spaceFlight = createSpaceFlight(new THREE.Vector3(spaceDock[1], spaceDock[2], spaceDock[3]), new THREE.Vector3(3.7, 34.8, 1.5), materials);
       world.add(spaceFlight.root);
@@ -652,12 +653,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const t = clamp((index + local) / last, 0, 1);
         routeCurve.getPoint(t, runnerPoint);
         routeCurve.getTangent(t, runnerTangent);
-        if (progress >= flightStart && progress <= flightEnd) flight.sample(progress, runnerPoint, runnerTangent);
+        // Clamp the preflight pose to the dock too: spline tangents must not lift the passenger before 10,000 M.
+        if (progress >= flightRevealStart && progress <= flightEnd) flight.sample(progress, runnerPoint, runnerTangent);
         if (progress >= spaceBoardingStart) spaceFlight.sample(progress, runnerPoint, runnerTangent);
         const capsuleBoarding = spaceBoarding(progress);
         const boarding = Math.max(flightBoarding(progress), capsuleBoarding);
         // The same passenger boards each vehicle; the capsule keeps them seated through space.
-        const hopWeight = smooth((progress - 1.45) / 0.08) * (1 - smooth((progress - 2.35) / 0.1)) * (1 - boarding);
+        const hopWeight = smooth((progress - flightStart) / 0.08) * (1 - smooth((progress - 2.35) / 0.1)) * (1 - boarding);
         const hop = segmentLength[index] > 0.2 ? Math.sin(Math.PI * local) * 0.7 * hopWeight : 0;
         const dt = Math.max(1, deltaMs) / 1000;
         const distance = runnerPoint.distanceTo(runnerState.previous);
@@ -1012,6 +1014,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           diagnostics.pixelRatio = pixelRatio;
           diagnostics.frames++;
           diagnostics.cpuMs = performance.now() - renderStarted;
+          diagnostics.aircraftY = flight.aircraft.position.y;
+          diagnostics.passengerY = runner.position.y;
         }
       };
       resize();
