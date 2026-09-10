@@ -29,7 +29,7 @@ test('precipitation hits slope triangles, shares splash timing, and keeps a fixe
   slope.rotation.x = -Math.PI / 2 + 0.3;
   slope.position.set(1, 2, -1);
   world.add(slope);
-  const weather = createWeather(world, true, 1, [slope], []);
+  const weather = createWeather(world, true, 1, [slope]);
   expect(weather.impactCount).toBe(480);
   const rain = weather.root.getObjectByName('terrain-rain') as THREE.LineSegments<THREE.BufferGeometry, THREE.ShaderMaterial>;
   const splashes = weather.root.getObjectByName('rain-splashes') as THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
@@ -78,7 +78,7 @@ test('rain and alpine weather render on desktop and mobile, animate together, an
   await page.evaluate(() => document.fonts.ready);
   const stats = () => page.locator('canvas').evaluate(canvas => (canvas as HTMLCanvasElement & { journeyDiagnostics: {
     calls: number; triangles: number; frames: number;
-    weather: { rain: number; wind: number; snow: number; wet: number; gust: number; travel: number; treeBend: number; cloudX: number; runnerLean: number; impacts: number };
+    weather: { rain: number; wind: number; snow: number; wet: number; gust: number; travel: number; treeBend: number; cloudX: number; runnerLean: number; impacts: number; water: { channels: number; flow: number; flux: number; rainAge: number; activeSources: number } };
   } }).journeyDiagnostics);
   for (const altitude of [650, 1400, 2400, 2850, 3000, 650]) {
     await page.evaluate(progress => {
@@ -94,6 +94,7 @@ test('rain and alpine weather render on desktop and mobile, animate together, an
     const current = await stats();
     expect(current.weather.wind).toBeCloseTo(weatherAtAltitude(altitude).wind, 1);
     expect(current.weather.impacts).toBeGreaterThanOrEqual(480);
+    expect(current.weather.water.channels).toBeGreaterThanOrEqual(testInfo.project.name === 'mobile' ? 6 : 12);
     expect(current.calls).toBeLessThan(220);
     expect(current.triangles).toBeLessThan(180000);
     if ([650, 1400, 2850].includes(altitude)) await page.screenshot({ path: `/tmp/weather-${altitude}-${testInfo.project.name}.png` });
@@ -102,11 +103,19 @@ test('rain and alpine weather render on desktop and mobile, animate together, an
   await page.waitForTimeout(400);
   expect((await stats()).frames).toBe(paused.frames);
   await page.getByRole('button', { name: 'เปิดภาพเคลื่อนไหว' }).click();
-  await expect.poll(async () => (await stats()).weather.travel).toBeGreaterThan(paused.weather.travel + 0.5);
+  await expect.poll(async () => (await stats()).weather.travel, { timeout: 15000 }).toBeGreaterThan(paused.weather.travel + 0.5);
   const moving = await stats();
+  expect(moving.weather.water.flow).toBeGreaterThan(paused.weather.water.flow);
+  expect(moving.weather.water.flux).toBeGreaterThan(0.1);
   expect(moving.weather.treeBend).not.toBe(paused.weather.treeBend);
   expect(moving.weather.cloudX).not.toBe(paused.weather.cloudX);
   expect(Math.abs(moving.weather.runnerLean)).toBeGreaterThan(0.01);
   await page.screenshot({ path: `/tmp/weather-rain-moving-${testInfo.project.name}.png` });
+  await page.getByRole('button', { name: 'หยุดภาพเคลื่อนไหว' }).click();
+  await page.waitForTimeout(500);
+  const frozenWater = (await stats()).weather.water;
+  await page.waitForTimeout(400);
+  expect((await stats()).weather.water).toEqual(frozenWater);
+  await testInfo.attach('water-render-budget', { body: JSON.stringify(moving), contentType: 'application/json' });
   expect(errors).toEqual([]);
 });

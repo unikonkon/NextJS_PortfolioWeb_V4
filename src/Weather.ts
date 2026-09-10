@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { altitudeAt, smooth } from './journeyMath';
+import { createMountainWater } from './MountainWater';
 
 /** Fade edges in displayed metres; wind accompanies both rain and alpine snow. */
 export const weatherBands = {
@@ -15,7 +16,6 @@ export function weatherAtAltitude(altitude: number) {
 
 const random = (seed: number) => { const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
 type Impact = { point: THREE.Vector3; normal: THREE.Vector3 };
-export type RunoffPath = { left: THREE.Vector3[]; right: THREE.Vector3[] };
 
 /** Raycast once against the rendered mountain and terrace triangles, never in the frame loop. */
 function sampleImpacts(surfaces: THREE.Mesh[], count: number): Impact[] {
@@ -155,30 +155,12 @@ const windVertex = `${shared}
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1);
   }`;
 
-function runoffGeometry(paths: RunoffPath[]) {
-  const positions: number[] = [], uvs: number[] = [], indices: number[] = [];
-  paths.forEach(({ left, right }) => {
-    const offset = positions.length / 3;
-    let distance = 0;
-    left.forEach((point, index) => {
-      if (index) distance += point.distanceTo(left[index - 1]);
-      positions.push(...point.toArray(), ...right[index].toArray());
-      uvs.push(0, distance, 1, distance);
-      if (index) { const a = offset + index * 2; indices.push(a - 2, a, a - 1, a - 1, a, a + 1); }
-    });
-  });
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  return geometry;
-}
-
-export function createWeather(world: THREE.Group, mobile: boolean, pixelRatio: number, surfaces: THREE.Mesh[], paths: RunoffPath[]) {
+export function createWeather(world: THREE.Group, mobile: boolean, pixelRatio: number, surfaces: THREE.Mesh[], flowingRiver = false) {
   const root = new THREE.Group();
   root.name = 'mountain-weather';
   world.add(root); // Same coordinate system as the terrain, including pointer-driven world rotation.
   const hits = sampleImpacts(surfaces, mobile ? 480 : 1100);
+  const water = flowingRiver ? createMountainWater(world, mobile, surfaces, hits) : null;
   const state = { rain: 0, wind: 0, snow: 0, gust: 0, wet: 0 };
   const uniforms = { uTime: { value: 0 }, uWind: { value: 0 }, uTravel: { value: 0 }, uPixelRatio: { value: pixelRatio } };
   const material = (vertexShader: string, fragmentShader: string, color: string) => new THREE.ShaderMaterial({
@@ -213,25 +195,11 @@ export function createWeather(world: THREE.Group, mobile: boolean, pixelRatio: n
   windGeometry.setIndex(windIndices);
   const wind = new THREE.LineSegments(windGeometry, material(windVertex, lineFragment, '#abc1ca'));
   wind.name = 'mountain-gusts';
-  const runoff = new THREE.Mesh(runoffGeometry(paths), material(`varying vec2 vUv;
-    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1); }`, `
-    uniform float uTime, uIntensity; varying vec2 vUv;
-    void main() {
-      float edge = smoothstep(0.0, 0.22, vUv.x) * (1.0 - smoothstep(0.78, 1.0, vUv.x));
-      float flow = pow(0.5 + 0.5 * sin(vUv.y * 19.0 - uTime * 12.0 + sin(vUv.x * 12.0)), 6.0);
-      float channel = 0.5 + 0.5 * sin(vUv.x * 26.0 + vUv.y * 3.0 - uTime * 2.0);
-      vec3 color = mix(vec3(0.19, 0.37, 0.4), vec3(0.72, 0.88, 0.91), flow * 0.75 + channel * 0.15);
-      gl_FragColor = vec4(color, edge * uIntensity * (0.27 + flow * 0.48));
-      #include <tonemapping_fragment>
-      #include <colorspace_fragment>
-    }`, '#b8e1e5'));
-  runoff.material.side = THREE.DoubleSide;
-  runoff.name = 'mountain-runoff';
-  const objects = [rain, splashes, ripples, snow, wind, runoff];
+  const objects = [rain, splashes, ripples, snow, wind];
   objects.forEach(object => { object.frustumCulled = false; object.visible = false; root.add(object); });
   let previousTime: number | undefined;
   const weather = {
-    root, state, lean: 0, travel: 0,
+    root, state, water, lean: 0, travel: 0,
     impactCount: hits.length,
     update(progress: number, elapsed: number, paused: boolean) {
       const dt = previousTime === undefined ? 0 : Math.max(0, Math.min(0.1, elapsed - previousTime));
@@ -247,13 +215,14 @@ export function createWeather(world: THREE.Group, mobile: boolean, pixelRatio: n
       if (!paused) weather.travel += dt * (0.35 + weather.lean * 3.8);
       state.wet += (state.rain - state.wet) * (paused || first ? 1 : 1 - Math.exp(-dt * (state.rain > state.wet ? 2 : 0.55)));
       uniforms.uTime.value = elapsed; uniforms.uWind.value = weather.lean; uniforms.uTravel.value = weather.travel;
-      const intensities = [state.rain, state.rain, state.rain, state.snow, state.wind, state.wet];
+      const intensities = [state.rain, state.rain, state.rain, state.snow, state.wind];
+      water?.update(elapsed, state.rain, weather.lean, paused);
       objects.forEach((object, i) => { object.material.uniforms.uIntensity.value = intensities[i]; object.visible = intensities[i] > 0.01; });
       root.visible = objects.some(object => object.visible);
       return { dim: state.rain * 0.43 + state.snow * 0.13, cool: Math.min(1, state.rain * 0.6 + state.snow * 0.82 + state.wind * 0.1) };
     },
     setPixelRatio(value: number) { uniforms.uPixelRatio.value = value; },
-    dispose() { objects.forEach(object => { object.geometry.dispose(); object.material.dispose(); }); root.removeFromParent(); },
+    dispose() { water?.dispose(); objects.forEach(object => { object.geometry.dispose(); object.material.dispose(); }); root.removeFromParent(); },
   };
   return weather;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { createFlourishes, createPopTriggers } from './Flourish';
-import { createWeather, type RunoffPath } from './Weather';
+import { createWeather } from './Weather';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createTraveler, createTravelerLighting } from './Traveler';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -205,11 +205,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const terrace = mesh(new THREE.CylinderGeometry(6.35, 6.2, 0.32, 48), '#a4b780', [-1, -0.3, -1.3]);
       const turf = mesh(new THREE.CylinderGeometry(6.22, 6.3, 0.16, 48), '#b8c693', [-1, -0.08, -1.3]);
       for (const layer of [terrace, turf]) { layer.rotation.y = 0.17; layer.scale.set(1.2, 1, 1.12); }
-      const river = box([0.7, 0.06, 3.5], '#90ccd0', [1.4, 0.04, 1.15]);
-      river.rotation.y = -0.18;
-      box([0.38, 0.045, 2.85], '#90ccd0', [0.6, 0.025, 4.12]).rotation.y = -0.36;
-      box([0.48, 3.4, 0.12], '#a3d8d9', [0.1, -1.68, 5.48]);
-      for (let stream = 0; stream < 4; stream++) box([0.025, 2.8 - stream * 0.23, 0.03], '#d9efdf', [-0.06 + stream * 0.1, -1.55, 5.56]);
+      // The connected river, banks and waterfall are built with mountain drainage below.
       ([[-2.9, 0, 1.2], [-3.7, 0, 0.9], [-2.3, 0, 2.3], [2.6, 0, -0.9], [3.1, 0, 0.3], [4.4, 0, -0.6], [-3.5, 0, 3.2], [-1.1, 0, 3]] as Vec[]).forEach((position, index) => tree(position, 0.6 + (index % 3) * 0.16));
       const farm = createMountainFarm(materials);
       world.add(farm.root);
@@ -457,25 +453,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const daylightColor = new THREE.Color('#fff4d9');
       const mountainLightColor = new THREE.Color('#ffdfa3');
       const overcastColor = new THREE.Color('#cdd6e2');
-      // Narrow channels follow real triangles on every peak; downhill UVs animate their surface flow.
-      const runoffPaths: RunoffPath[] = [];
-      terrain.forEach(mountain => {
-        for (let channel = 0; channel < (mobile ? 2 : 3); channel++) {
-          const left: THREE.Vector3[] = [], right: THREE.Vector3[] = [];
-          const angle = facing - 0.7 + channel * 0.64 + mountain.seed * 0.12;
-          for (let step = 0; step <= 64; step++) {
-            const elevation = 0.70 * (1 - step / 64) + 0.025;
-            const height = mountain.height * elevation;
-            const meander = angle + Math.sin(elevation * 12 + channel) * 0.035 + Math.sin(elevation * 28) * 0.012;
-            const radius = mountainRadiusAt(mountain.radius, elevation, meander, mountain.seed);
-            const halfAngle = (0.018 + (1 - elevation) * 0.022) / Math.max(0.2, radius);
-            left.push(new THREE.Vector3(...slopePoint(mountain, height, meander - halfAngle, 0.024)));
-            right.push(new THREE.Vector3(...slopePoint(mountain, height, meander + halfAngle, 0.024)));
-          }
-          runoffPaths.push({ left, right });
-        }
-      });
-      const weather = createWeather(world, mobile, pixelRatio, [...terrain.map(item => item.surface), turf], runoffPaths);
+      const weather = createWeather(world, mobile, pixelRatio, [...terrain.map(item => item.surface), turf], true);
       // Cloud banks passing over the slopes use the same accumulated wind travel as the precipitation.
       const mountainClouds = [cloud([-5.2, 5.4, -3.4], 0.65, 0.8), cloud([-1.8, 9.0, -4.5], 0.75, 1), cloud([2.3, 12.0, -3.1], 0.52, 1.2)];
       const cloudDayColor = new THREE.Color('#ffffff');
@@ -968,7 +946,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       }
       batchStaticScene(world, new Set<THREE.Object3D>([
         runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays, weather.root,
-        ...windTrees.map(item => item.object),
+        ...(weather.water ? [weather.water.root] : []), ...windTrees.map(item => item.object),
         ...clouds.map(item => item.group), ...floaters.map(item => item.object), ...flagGroups, ...campMarkers,
       ]));
       // GSAP loops bob the balloon/islands out of phase and flutter the flags.
@@ -1193,7 +1171,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           diagnostics.calls = renderer.info.render.calls;
           diagnostics.triangles = renderer.info.render.triangles;
           diagnostics.pixelRatio = pixelRatio;
-          Object.assign(diagnostics, { balloonY: floaters[0]?.object.position.y ?? 0, markerScale: Math.max(...campMarkers.map(marker => marker.scale.y)), flagYaw: flags[0]?.rotation.y ?? 0, runnerScaleY: runner.scale.y, weather: { rain: weather.state.rain, wind: weather.state.wind, snow: weather.state.snow, gust: weather.state.gust, wet: weather.state.wet, travel: weather.travel, impacts: weather.impactCount, treeBend: windTrees[0]?.object.rotation.z ?? 0, cloudX: mountainClouds[0].position.x, runnerLean: body.rotation.z }, jumpLift: Math.max(jump.pose.lift, skip.pose.lift) });
+          Object.assign(diagnostics, { balloonY: floaters[0]?.object.position.y ?? 0, markerScale: Math.max(...campMarkers.map(marker => marker.scale.y)), flagYaw: flags[0]?.rotation.y ?? 0, runnerScaleY: runner.scale.y, weather: { rain: weather.state.rain, wind: weather.state.wind, snow: weather.state.snow, gust: weather.state.gust, wet: weather.state.wet, travel: weather.travel, impacts: weather.impactCount, treeBend: windTrees[0]?.object.rotation.z ?? 0, cloudX: mountainClouds[0].position.x, runnerLean: body.rotation.z, water: weather.water ? { ...weather.water.state, channels: weather.water.paths.length } : null }, jumpLift: Math.max(jump.pose.lift, skip.pose.lift) });
           diagnostics.frames++;
           diagnostics.cpuMs = performance.now() - renderStarted;
           diagnostics.aircraftY = flight.aircraft.position.y;
