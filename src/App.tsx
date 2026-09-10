@@ -4,7 +4,6 @@ import { projects, type Project } from '../data/personalProjects';
 import { workExperience, workProjects, type WorkProject } from '../data/workProject';
 import { skillCategories } from '../data/skillCategories';
 import { altitudeAt, chapterIds, formatAltitude } from './journeyMath';
-import { travelerStageAtAltitude, travelerStages } from './journey';
 
 const Journey = lazy(() => import('./Journey.tsx'));
 type Detail = Project | WorkProject;
@@ -164,7 +163,6 @@ export default function App() {
   const onFallback = useCallback(() => setFallback(true), []);
   const copyTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const altimeter = useRef<HTMLSpanElement>(null);
-  const travelerLabel = useRef<HTMLSpanElement>(null);
   const currentChapter = chapters.find(chapter => chapter.id === active)!;
   const filtered = projects.filter(project => (filter === filters[0] || category(project) === filter) && `${project.title} ${project.description} ${project.technologies.join(' ')}`.toLowerCase().includes(query.toLowerCase()));
 
@@ -174,10 +172,6 @@ export default function App() {
   const onProgress = useCallback((progress: number) => {
     const altitude = altitudeAt(progress);
     if (altimeter.current) altimeter.current.textContent = formatAltitude(altitude);
-    if (travelerLabel.current) {
-      const label = altitude > 48520 ? 'นักสำรวจอวกาศ' : travelerStages[travelerStageAtAltitude(altitude)].label;
-      if (travelerLabel.current.textContent !== label) travelerLabel.current.textContent = label;
-    }
   }, []);
 
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
@@ -249,7 +243,7 @@ export default function App() {
 
       <section id="space" className="space-section chapter section-padding"><div className="chapter-intro"><div className="chapter-heading"><span className="eyebrow">04 / อวกาศ · ก้าวต่อไป</span><span className="altitude">ยังมีสิ่งใหม่ให้เรียนรู้เสมอ</span></div><div className="availability"><span className="status-dot" /> พร้อมร่วมงานในโปรเจกต์ถัดไป</div><h2>มาสร้างสิ่งที่มีประโยชน์<span className="chapter-subtitle">ไปด้วยกันครับ</span></h2></div><div className="chapter-content"><div className="space-layout"><div className="space-copy"><p>การเดินทางของผมยังไม่จบ ผมกำลังเรียนรู้ AI, RAG และการออกแบบระบบ พร้อมเปิดรับโอกาสในสาย Frontend, Backend และ Full Stack หากทีมของคุณมีโจทย์ที่อยากแก้ หรือโปรเจกต์ที่อยากพัฒนาต่อ ผมยินดีคุยและเรียนรู้ไปด้วยกันครับ</p><a className="button lime" href="mailto:bananammm0001@gmail.com">เริ่มต้นบทสนทนา <ArrowUpRight size={17} /></a><div className="email-row"><a href="mailto:bananammm0001@gmail.com"><Mail size={13} /> bananammm0001@gmail.com</a><button className="icon-button" aria-label={copied ? 'คัดลอกอีเมลแล้ว' : 'คัดลอกอีเมล'} onClick={copyEmail}>{copied ? <Check size={16} /> : <Copy size={16} />}</button><span className="copy-feedback" role="status">{copied ? 'คัดลอกแล้ว' : ''}</span></div><SceneLegend chapter={chapters[3]} /></div><figure className="space-portrait"><span className="planet-ring" aria-hidden="true" /><img src={photos.outdoor} alt="สุเทพ จันทวี สวมหมวกและสะพายเป้ พร้อมออกเดินทางครั้งต่อไป" width={936} height={1100} loading="lazy" decoding="async" /><figcaption><strong>พร้อมออกเดินทางบทถัดไป</strong><span>Frontend · Backend · Full Stack</span></figcaption></figure></div><div className="skills-footer"><span>สิ่งที่กำลังเรียนรู้ต่อ</span><span>AI & CODE</span><span>System design</span><span>กระบวนการพัฒนาซอฟต์แวร์</span></div><footer><a className="brand" href="#ground"><span className="brand-icon"><Mountain size={19} /></span>suthep.</a><p>© {new Date().getFullYear()} Suthep Jantawee<br /><span>Crafted with code & curiosity.</span></p><div className="footer-social"><a href="https://github.com/unikonkon" target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={13} /></a><a href="https://www.linkedin.com/in/suthep-jantawee" target="_blank" rel="noreferrer">LinkedIn <ArrowUpRight size={13} /></a><a href={resumeUrl} download={resumeFileName}>Resume <Download size={13} /></a></div><a className="back-top" href="#ground" aria-label="กลับด้านบน"><ArrowDown size={18} /></a></footer></div></section>
     </main>
-    <div className="journey-status"><span className="status-dot" /><span className="traveler-status-copy"><span className="journey-chapter-label">{currentChapter.label} · {currentChapter.en}</span><span ref={travelerLabel} className="traveler-stage-label">นักศึกษา</span></span><span className="status-separator" /><span className="altimeter"><span ref={altimeter}>{chapters[0].altitude}</span></span><button className="motion-toggle" aria-label={paused ? 'เปิดภาพเคลื่อนไหว' : 'หยุดภาพเคลื่อนไหว'} aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused ? <Play size={18} /> : <Pause size={18} />}</button></div>
+    <div className="journey-status"><span className="status-dot" /><span className="journey-chapter-label">{currentChapter.label} · {currentChapter.en}</span><span className="status-separator" /><span className="altimeter"><span ref={altimeter}>{chapters[0].altitude}</span></span><button className="motion-toggle" aria-label={paused ? 'เปิดภาพเคลื่อนไหว' : 'หยุดภาพเคลื่อนไหว'} aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused ? <Play size={9} /> : <Pause size={9} />}</button></div>
     <ProjectDialog detail={detail} close={() => setDetail(null)} />
   </div>;
 }

@@ -123,7 +123,7 @@ test('life stages follow the displayed altitude, reuse outfits when scrolling ba
   actor.dispose(); materials.forEach(material => material.dispose());
 });
 
-test('enlarged traveler changes outfits at milestones and the larger controls fit desktop and mobile', async ({ page }, testInfo) => {
+test('enlarged traveler changes outfits at milestones and the compact chapter controls fit desktop and mobile', async ({ page }, testInfo) => {
   test.setTimeout(150000);
   const errors: string[] = [];
   page.on('pageerror', error => { errors.push(error.message); console.error(error.message); });
@@ -133,7 +133,7 @@ test('enlarged traveler changes outfits at milestones and the larger controls fi
   await expect(page.locator('canvas')).toBeVisible({ timeout: 45000 });
   await page.evaluate(() => document.fonts.ready);
   const stats = () => page.locator('canvas').evaluate(canvas => (canvas as HTMLCanvasElement & { journeyDiagnostics: { travelerScale: number; travelerStage: string; travelerOutfit: string; aircraftScale: number; calls: number; triangles: number } }).journeyDiagnostics);
-  for (const [metres, stage, label] of [[80, 'student', 'นักศึกษา'], [1120, 'worker', 'วัยทำงาน'], [5510, 'professional', 'ชุดสุภาพ'], [33640, 'professional', 'ชุดสุภาพ'], [1120, 'worker', 'วัยทำงาน'], [80, 'student', 'นักศึกษา']] as const) {
+  for (const [metres, stage] of [[80, 'student'], [1120, 'worker'], [5510, 'professional'], [33640, 'professional'], [1120, 'worker'], [80, 'student']] as const) {
     // Pixel-rounded scrolling cannot always land on an exact metre; exact boundaries are checked above.
     const targetAltitude = metres === 1120 || metres === 5510 ? metres + 30 : metres;
     let low = 0, high = 3;
@@ -147,7 +147,7 @@ test('enlarged traveler changes outfits at milestones and the larger controls fi
       scrollTo({ top: Math.ceil(scrollY + anchor - innerHeight * 0.38), behavior: 'instant' });
     }, (low + high) / 2);
     await expect.poll(async () => (await stats()).travelerStage, { timeout: 15000 }).toBe(stage);
-    await expect(page.locator('.traveler-stage-label')).toContainText(label, { timeout: 15000 });
+    await expect(page.locator('.traveler-stage-label')).toHaveCount(0);
     const current = await stats();
     expect(current.travelerScale).toBe(1.5);
     expect(current.calls).toBeLessThan(220); expect(current.triangles).toBeLessThan(180000);
@@ -155,7 +155,7 @@ test('enlarged traveler changes outfits at milestones and the larger controls fi
     expect(hud!.x).toBeGreaterThanOrEqual(0);
     expect(hud!.x + hud!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     const button = await page.locator('.motion-toggle').boundingBox();
-    expect(button!.width).toBe(48); expect(button!.height).toBe(48);
+    expect(button!.width).toBe(24); expect(button!.height).toBe(24);
     await page.screenshot({ path: `/tmp/traveler-${metres}-${testInfo.project.name}.png` });
   }
   await page.getByRole('button', { name: 'เปิดภาพเคลื่อนไหว' }).click();
