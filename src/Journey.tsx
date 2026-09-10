@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { createFlourishes, createPopTriggers } from './Flourish';
+import { createWeather, type RunoffPath } from './Weather';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createTraveler, createTravelerLighting } from './Traveler';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -139,23 +140,45 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         parent.add(item);
         return item;
       }
+      const windTrees: { object: THREE.Group; phase: number }[] = [];
       function tree(position: Vec, scale = 1, parent: THREE.Object3D = stage) {
         const item = group(position, parent, scale);
-        mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.7, 6), '#75604a', [0, 0.3, 0], item);
-        for (let layer = 0; layer < 3; layer++) mesh(createPineCrown(0.68 - layer * 0.13, 1.05), ['#426747', '#547955', '#6c8c60'][layer], [0, 0.8 + layer * 0.38, 0], item);
+        const parts: THREE.BufferGeometry[] = [];
+        function part(geometry: THREE.BufferGeometry, color: string, y: number) {
+          const piece = geometry.toNonIndexed();
+          geometry.dispose();
+          piece.translate(0, y, 0);
+          const tint = new THREE.Color(color);
+          const colors = new Float32Array(piece.getAttribute('position').count * 3);
+          for (let i = 0; i < colors.length; i += 3) tint.toArray(colors, i);
+          piece.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+          parts.push(piece);
+        }
+        part(new THREE.CylinderGeometry(0.09, 0.13, 0.7, 6), '#75604a', 0.3);
+        for (let layer = 0; layer < 3; layer++) part(createPineCrown(0.68 - layer * 0.13, 1.05), ['#426747', '#547955', '#6c8c60'][layer], 0.8 + layer * 0.38);
+        if (!materials.has('swaying-pines')) materials.set('swaying-pines', new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 }));
+        const pine = new THREE.Mesh(mergeGeometries(parts), materials.get('swaying-pines'));
+        parts.forEach(piece => piece.dispose());
+        pine.castShadow = pine.receiveShadow = true;
+        item.add(pine);
+        windTrees.push({ object: item, phase: windTrees.length * 1.73 });
       }
       const cloudGeometry = createCloudGeometry();
       const cloudMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, envMapIntensity: 0.18 });
       materials.set('cloud-banks', cloudMaterial);
-      const clouds: { group: THREE.Group; base: number; height: number; speed: number }[] = [];
+      const clouds: { group: THREE.Group; base: number; height: number; depth: number; speed: number; material: THREE.MeshStandardMaterial }[] = [];
       function cloud(position: Vec, scale = 1, speed = 1, castShadow = false) {
         const item = group(position, stage, scale);
-        const bank = new THREE.Mesh(cloudGeometry, cloudMaterial);
+        const bankMaterial = cloudMaterial.clone();
+        bankMaterial.transparent = true;
+        bankMaterial.depthWrite = false;
+        materials.set(`cloud-drift-${clouds.length}`, bankMaterial);
+        const bank = new THREE.Mesh(cloudGeometry, bankMaterial);
         bank.name = 'cloud-bank';
         bank.castShadow = castShadow;
         bank.receiveShadow = true;
         item.add(bank);
-        clouds.push({ group: item, base: position[0], height: position[1], speed });
+        clouds.push({ group: item, base: position[0], height: position[1], depth: position[2], speed, material: bankMaterial });
         return item;
       }
       function flag(position: Vec, color: string, height = 0.9, parent: THREE.Object3D = stage) {
@@ -346,6 +369,12 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         }
       });
       const instanceTransform = new THREE.Object3D();
+      const windPines: { mesh: THREE.InstancedMesh; offset: number }[] = [];
+      const pineBend = new THREE.Quaternion();
+      const pineYaw = new THREE.Quaternion();
+      const pineUp = new THREE.Vector3(0, 1, 0);
+      const pineWindAxis = new THREE.Vector3(0.24, 0, -1).normalize();
+      const pineOffset = new THREE.Vector3();
       function detailInstances(geometry: THREE.BufferGeometry, color: string, details: typeof rocks, part: 'rock' | 'trunk' | 'lower' | 'upper') {
         const instances = new THREE.InstancedMesh(geometry, material(color), details.length);
         instances.castShadow = instances.receiveShadow = true;
@@ -362,8 +391,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           instanceTransform.updateMatrix();
           instances.setMatrixAt(index, instanceTransform.matrix);
         });
+        if (part !== 'rock') {
+          instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+          windPines.push({ mesh: instances, offset: { trunk: 0.27, lower: 0.7, upper: 1.05 }[part] });
+        }
         instances.instanceMatrix.needsUpdate = true;
         instances.computeBoundingSphere();
+        if (part !== 'rock' && instances.boundingSphere) instances.boundingSphere.radius += 0.3;
         world.add(instances);
       }
       detailInstances(new THREE.DodecahedronGeometry(1, 0), '#858a78', rocks, 'rock');
@@ -422,6 +456,36 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const mountainLightTarget = new THREE.Vector3();
       const daylightColor = new THREE.Color('#fff4d9');
       const mountainLightColor = new THREE.Color('#ffdfa3');
+      const overcastColor = new THREE.Color('#cdd6e2');
+      // Narrow channels follow real triangles on every peak; downhill UVs animate their surface flow.
+      const runoffPaths: RunoffPath[] = [];
+      terrain.forEach(mountain => {
+        for (let channel = 0; channel < (mobile ? 2 : 3); channel++) {
+          const left: THREE.Vector3[] = [], right: THREE.Vector3[] = [];
+          const angle = facing - 0.7 + channel * 0.64 + mountain.seed * 0.12;
+          for (let step = 0; step <= 64; step++) {
+            const elevation = 0.70 * (1 - step / 64) + 0.025;
+            const height = mountain.height * elevation;
+            const meander = angle + Math.sin(elevation * 12 + channel) * 0.035 + Math.sin(elevation * 28) * 0.012;
+            const radius = mountainRadiusAt(mountain.radius, elevation, meander, mountain.seed);
+            const halfAngle = (0.018 + (1 - elevation) * 0.022) / Math.max(0.2, radius);
+            left.push(new THREE.Vector3(...slopePoint(mountain, height, meander - halfAngle, 0.024)));
+            right.push(new THREE.Vector3(...slopePoint(mountain, height, meander + halfAngle, 0.024)));
+          }
+          runoffPaths.push({ left, right });
+        }
+      });
+      const weather = createWeather(world, mobile, pixelRatio, [...terrain.map(item => item.surface), turf], runoffPaths);
+      // Cloud banks passing over the slopes use the same accumulated wind travel as the precipitation.
+      const mountainClouds = [cloud([-5.2, 5.4, -3.4], 0.65, 0.8), cloud([-1.8, 9.0, -4.5], 0.75, 1), cloud([2.3, 12.0, -3.1], 0.52, 1.2)];
+      const cloudDayColor = new THREE.Color('#ffffff');
+      const cloudStormColor = new THREE.Color('#8d9daa');
+      const cloudSnowColor = new THREE.Color('#e3edf4');
+      const rainSkyColor = new THREE.Color('#bdcbd3');
+      const snowSkyColor = new THREE.Color('#dce7ef');
+      let lastWeatherSky = '';
+      const windInRunnerSpace = new THREE.Vector3();
+      const runnerInverse = new THREE.Quaternion();
       // Two broad, rounded switchbacks on the camera-facing slope. All eight skill camps are spaced along
       // these same three traverses; adding camps no longer adds bends. The ribbon, steps, flags and runner
       // share one trail function so every element follows the new route from the base to the summit.
@@ -737,8 +801,11 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         armR.rotation.x = lerpAngle(armR.rotation.x, swing * 0.8 * (1 - airborne) - airborne * 1.6, k);
         armL.rotation.z = lerpAngle(armL.rotation.z, 0.1, k);
         armR.rotation.z = lerpAngle(armR.rotation.z, -0.1, k);
-        body.rotation.x = lerpAngle(body.rotation.x, runnerState.amplitude * 0.18 * (1 - airborne) - airborne * 0.2, k);
-        body.rotation.z = lerpAngle(body.rotation.z, 0, k);
+        // Transform the wind into the runner's heading so they lean upwind through both trail turns.
+        runnerInverse.copy(runner.quaternion).invert();
+        windInRunnerSpace.set(1, 0, 0.24).normalize().applyQuaternion(runnerInverse);
+        body.rotation.x = lerpAngle(body.rotation.x, runnerState.amplitude * 0.18 * (1 - airborne) - airborne * 0.2 - windInRunnerSpace.z * weather.lean * 0.18, k);
+        body.rotation.z = lerpAngle(body.rotation.z, windInRunnerSpace.x * weather.lean * 0.18, k);
         body.position.y = -0.08 * boarding;
         body.rotation.x *= 1 - boarding;
         body.rotation.z *= 1 - boarding;
@@ -900,13 +967,14 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         water.roughness = 0.2; water.metalness = 0.24;
       }
       batchStaticScene(world, new Set<THREE.Object3D>([
-        runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays,
+        runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays, weather.root,
+        ...windTrees.map(item => item.object),
         ...clouds.map(item => item.group), ...floaters.map(item => item.object), ...flagGroups, ...campMarkers,
       ]));
-      // Decorative motion runs on GSAP loops (ticked from the frame loop below): balloon/islands bob out of
-      // phase, cloud banks wander at their own pace, flags flutter in turn.
+      // GSAP loops bob the balloon/islands out of phase and flutter the flags.
+      // Weather drives cloud advection and tree sway from the same frame clock.
       motion.drift(floaters);
-      motion.driftClouds(clouds);
+      // Clouds are driven by weather.travel below so gusts never fight a separate tween.
       motion.flutter(flags);
       if (mobile) {
         // Only the mountains and the runner cast shadows on phones; trees, rocks, camps, farm, aircraft and the
@@ -1005,7 +1073,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         if (!hidden && !pauseRef.current && rafGap > 29) slowFrames++; else slowFrames = Math.max(0, slowFrames - 2);
         if (slowFrames > 90 && timestamp - qualityChangedAt > 5000 && pixelRatio > 1) {
           pixelRatio = Math.max(1, pixelRatio - 0.2);
-          renderer.setPixelRatio(pixelRatio); slowFrames = 0; qualityChangedAt = timestamp; dirty = true;
+          renderer.setPixelRatio(pixelRatio); weather.setPixelRatio(pixelRatio); slowFrames = 0; qualityChangedAt = timestamp; dirty = true;
         }
         // Full frame rate while the camera or runner is moving and the browser sustains it; otherwise ~30 fps.
         if (timestamp - lastFrame < (active && rafGap < 24 ? 15 : 32)) return;
@@ -1023,11 +1091,12 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         // The runner eases towards the scrolled progress with the same time constant as the camera, so both stay in step.
         if (pauseRef.current) runnerState.progress = progressNow;
         else runnerState.progress += (progressNow - runnerState.progress) * (1 - Math.exp(-delta / 250));
+        if (!pauseRef.current) elapsed += delta / 1000;
+        const mood = weather.update(runnerState.progress, elapsed, pauseRef.current);
         const runnerMoved = updateRunner(runnerState.progress, delta);
         if (runnerMoved) dirty = true;
         active = distance > 0.002 || runnerMoved;
         if (!pauseRef.current) {
-          elapsed += delta / 1000;
           world.rotation.y += (pointer.x * 0.12 + Math.sin(elapsed * 0.15) * 0.03 - world.rotation.y) * (1 - Math.exp(-delta / 400));
           motion.tick(delta);
           planet.rotation.y = elapsed * 0.035;
@@ -1058,6 +1127,61 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         sun.color.copy(daylightColor).lerp(mountainLightColor, sunlight);
         sun.intensity = 3.1 + sunlight * 0.5;
         hemisphere.intensity = 1.4 - 0.55 * sunlight - 0.9 * smooth((progressNow - 2.4) / 0.8);
+        sun.intensity *= 1 - mood.dim * 0.7;
+        hemisphere.intensity *= 1 - mood.dim * 0.5;
+        sun.color.lerp(overcastColor, mood.cool * 0.75);
+        hemisphere.color.copy(cloudDayColor).lerp(cloudSnowColor, mood.cool);
+        sunDiscMaterial.opacity *= 1 - mood.dim * 1.5;
+        glowMaterial.opacity *= 1 - mood.dim * 1.8;
+        rayMaterial.uniforms.strength.value *= 1 - Math.min(1, mood.dim * 2.4);
+        for (const mountain of terrain) {
+          const surface = mountain.surface.material as THREE.MeshStandardMaterial;
+          surface.roughness = 0.96 - weather.state.wet * 0.38;
+          surface.color.setScalar(1 - weather.state.wet * 0.12);
+        }
+        clouds.forEach((item, index) => {
+          const storm = mountainClouds.includes(item.group);
+          // Advection always follows +X/+Z. Fade at the edges before recycling a bank upstream.
+          const phase = ((weather.travel * 0.032 * item.speed + 0.18 + index * 0.137) % 1 + 1) % 1;
+          const drift = (phase - 0.5) * (storm ? 8 : 3.6);
+          item.group.position.x = item.base + drift;
+          item.group.position.z = item.depth + drift * 0.24;
+          item.group.position.y = item.height + Math.sin(elapsed * 0.18 + index) * 0.065;
+          const fade = smooth(phase / 0.13) * (1 - smooth((phase - 0.87) / 0.13));
+          item.material.opacity = fade * (storm ? 0.65 * Math.max(weather.state.rain, weather.state.snow) : 1);
+          item.material.color.copy(cloudDayColor).lerp(cloudStormColor, weather.state.rain * 0.65).lerp(cloudSnowColor, weather.state.snow * 0.7);
+          item.group.visible = item.material.opacity > 0.01;
+        });
+        sunDiscMaterial.color.copy(mountainLightColor).lerp(cloudDayColor, mood.cool);
+        glowMaterial.color.copy(cloudDayColor).lerp(cloudSnowColor, mood.cool);
+        glowMaterial.opacity *= 1 - weather.state.snow * 0.62;
+        const weatherSky = `${progressNow.toFixed(4)}/${weather.state.rain.toFixed(2)}/${weather.state.snow.toFixed(2)}`;
+        if (weatherSky !== lastWeatherSky) {
+          lastWeatherSky = weatherSky;
+          colorAt(progressNow, bottomColor).lerp(rainSkyColor, weather.state.rain * 0.45).lerp(snowSkyColor, weather.state.snow * 0.65);
+          colorAt(progressNow + 0.25, topColor).lerp(rainSkyColor, weather.state.rain * 0.6).lerp(snowSkyColor, weather.state.snow * 0.8);
+          root.style.setProperty('--sky-bottom', `#${bottomColor.getHexString()}`);
+          root.style.setProperty('--sky-top', `#${topColor.getHexString()}`);
+        }
+        windTrees.forEach(({ object, phase }) => {
+          const bend = weather.lean * (0.065 + Math.sin(elapsed * 2.2 + phase) * 0.018 + Math.sin(elapsed * 4.7 + phase) * 0.008);
+          object.rotation.z = -bend;
+          object.rotation.x = bend * 0.24;
+        });
+        for (const { mesh: instances, offset } of windPines) {
+          pines.forEach(({ position, size, seed }, index) => {
+            const bend = weather.lean * (0.10 + Math.sin(elapsed * 2.4 + seed) * 0.025 + Math.sin(elapsed * 5.1 + seed) * 0.012);
+            pineBend.setFromAxisAngle(pineWindAxis, bend);
+            pineYaw.setFromAxisAngle(pineUp, terrainNoise(seed + 52) * Math.PI * 2);
+            instanceTransform.quaternion.copy(pineBend).multiply(pineYaw);
+            pineOffset.set(0, size * offset, 0).applyQuaternion(pineBend);
+            instanceTransform.position.set(...position).add(pineOffset);
+            instanceTransform.scale.setScalar(size);
+            instanceTransform.updateMatrix();
+            instances.setMatrixAt(index, instanceTransform.matrix);
+          });
+          instances.instanceMatrix.needsUpdate = true;
+        }
         travelerLighting.update(runner, spaceBoarding(Math.min(3, Math.floor(runnerState.progress)) + travel(runnerState.progress % 1)));
         farm.update(elapsed, camera, pauseRef.current);
         const spaceChapter = Math.min(3, Math.floor(runnerState.progress));
@@ -1069,7 +1193,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           diagnostics.calls = renderer.info.render.calls;
           diagnostics.triangles = renderer.info.render.triangles;
           diagnostics.pixelRatio = pixelRatio;
-          Object.assign(diagnostics, { balloonY: floaters[0]?.object.position.y ?? 0, markerScale: Math.max(...campMarkers.map(marker => marker.scale.y)), flagYaw: flags[0]?.rotation.y ?? 0, runnerScaleY: runner.scale.y, jumpLift: Math.max(jump.pose.lift, skip.pose.lift) });
+          Object.assign(diagnostics, { balloonY: floaters[0]?.object.position.y ?? 0, markerScale: Math.max(...campMarkers.map(marker => marker.scale.y)), flagYaw: flags[0]?.rotation.y ?? 0, runnerScaleY: runner.scale.y, weather: { rain: weather.state.rain, wind: weather.state.wind, snow: weather.state.snow, gust: weather.state.gust, wet: weather.state.wet, travel: weather.travel, impacts: weather.impactCount, treeBend: windTrees[0]?.object.rotation.z ?? 0, cloudX: mountainClouds[0].position.x, runnerLean: body.rotation.z }, jumpLift: Math.max(jump.pose.lift, skip.pose.lift) });
           diagnostics.frames++;
           diagnostics.cpuMs = performance.now() - renderStarted;
           diagnostics.aircraftY = flight.aircraft.position.y;
@@ -1109,6 +1233,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         cancelAnimationFrame(animation);
         layoutObserver.disconnect();
         motion.dispose();
+        weather.dispose();
         window.removeEventListener('resize', resize);
         window.removeEventListener('pointermove', move);
         document.removeEventListener('visibilitychange', visibility);
