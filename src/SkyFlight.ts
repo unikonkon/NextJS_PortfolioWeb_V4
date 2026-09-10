@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { travelerScale } from './journey';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { altitudes, clamp, smooth } from './journeyMath';
 
@@ -113,14 +114,14 @@ export function createSkyFlight(start: THREE.Vector3, end: THREE.Vector3, materi
       direction.y = Math.min(direction.y, Math.hypot(direction.x, direction.z) * 0.35) * airborne;
       direction.normalize();
       aircraft.position.copy(progress <= flightStart ? start : position);
-      aircraft.scale.setScalar(reveal);
+      aircraft.scale.setScalar(reveal * travelerScale);
       aircraft.quaternion.setFromRotationMatrix(heading.lookAt(direction, origin, up));
       aircraft.rotateZ(Math.sin(t * Math.PI * 2) * 0.12);
       propeller.rotation.z = ambientTime * 18;
       for (let index = 0; index < offsets.length; index++) {
         const [x, y, z] = offsets[index];
         const phase = ambientTime * 4.2 + index * 1.4;
-        birdTransform.position.set(position.x + x + Math.sin(ambientTime * 0.5 + index) * 0.2, position.y + y + Math.sin(phase * 0.5) * 0.07, position.z + z);
+        birdTransform.position.set(position.x + x * travelerScale + Math.sin(ambientTime * 0.5 + index) * 0.2, position.y + y * travelerScale + Math.sin(phase * 0.5) * 0.07, position.z + z * travelerScale);
         birdTransform.quaternion.copy(aircraft.quaternion);
         birdTransform.scale.setScalar(reveal * (0.85 + index * 0.035));
         birdTransform.updateMatrix();

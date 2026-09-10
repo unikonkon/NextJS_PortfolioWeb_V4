@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { travelerScale } from './journey';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { smooth } from './journeyMath';
 
@@ -98,7 +99,7 @@ export function createSpaceFlight(start: THREE.Vector3, end: THREE.Vector3, mate
       if (!paused) ambientTime = time;
       sample(Math.max(spaceLaunch, progress), craftPoint, tangent);
       spacecraft.position.copy(craftPoint);
-      spacecraft.scale.setScalar(reveal);
+      spacecraft.scale.setScalar(reveal * travelerScale);
       const launch = smooth((progress - spaceLaunch) / 0.12);
       spacecraft.rotation.set(0, 0.5, -0.1 * launch + Math.sin(ambientTime * 0.7) * 0.025 * launch);
       ramp.scale.setScalar(1 - spaceBoarding(progress));

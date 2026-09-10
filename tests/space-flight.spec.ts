@@ -34,6 +34,7 @@ test('space passenger path is continuous and light effects stop when paused', ()
   flight.update(3, 1, false);
   const comets = effects.root.getObjectByName('falling-comets') as THREE.InstancedMesh;
   const before = Array.from(comets.instanceMatrix.array);
+  expect(flight.spacecraft.scale.x).toBe(1.5);
   const attitude = flight.spacecraft.quaternion.clone();
   const flame = flight.root.getObjectByName('spacecraft-exhaust')!;
   const flameScale = flame.scale.y;

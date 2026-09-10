@@ -549,3 +549,24 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.5; le
   .journey-status { background: #f6f8eff0; }
   .app[data-chapter=space] .journey-status { background: #111b2ef0; }
 }
+
+/* Traveler HUD follows the 1.5x actor scale; flex shrinking keeps the altitude and control usable on phones. */
+.journey-status { font-size: 15px; gap: 15px; padding: 10.5px 15px 10.5px 22.5px; border-radius: 45px; max-width: calc(100% - 24px); bottom: max(15px, env(safe-area-inset-bottom)); }
+.journey-status .status-dot { width: 9px; height: 9px; flex-shrink: 0; }
+.journey-status .status-separator { height: 24px; flex-shrink: 0; }
+.journey-status .altimeter { min-width: 81px; flex-shrink: 0; }
+.journey-status .motion-toggle { width: 48px; height: 48px; min-width: 48px; min-height: 48px; flex-shrink: 0; }
+.traveler-status-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.journey-chapter-label { overflow: hidden; text-overflow: ellipsis; }
+.traveler-stage-label { font-size: 12px; line-height: 1.3; color: var(--ink); font-weight: 600; }
+@media (max-width: 760px) {
+  .journey-status { font-size: 13.5px; gap: 10.5px; padding: 9px 12px 9px 18px; }
+  .journey-status .status-separator { display: none; }
+  .journey-status .altimeter { min-width: 72px; }
+  .journey-chapter-label { white-space: normal; line-height: 1.25; }
+  .traveler-stage-label { font-size: 11px; }
+}
+@media (max-width: 360px) {
+  .journey-status { font-size: 12.75px; gap: 8px; padding-inline: 12px; }
+  .journey-status .status-dot { display: none; }
+}

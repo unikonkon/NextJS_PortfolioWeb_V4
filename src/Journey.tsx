@@ -6,7 +6,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createTraveler, createTravelerLighting } from './Traveler';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { batchStaticScene, createCloudGeometry, createPineCrown, createPlanet, createRockRelief, noise3 } from './SceneAssets';
-import { advanceRunStride, altitudes, blend, clamp, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
+import { advanceRunStride, altitudeAt, altitudes, blend, clamp, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
 import { createMountainFarm } from './MountainFarm';
 import { createSkyFlight, flightBoarding, flightEnd, flightRevealStart, flightStart } from './SkyFlight';
@@ -793,7 +793,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         armR.rotation.x = lerpAngle(armR.rotation.x, -0.85, boarding);
         armL.rotation.z *= 1 - capsuleBoarding;
         armR.rotation.z *= 1 - capsuleBoarding;
-        traveler.update(runnerState.stride, runnerState.amplitude, boarding, capsuleBoarding);
+        traveler.update(runnerState.stride, runnerState.amplitude, boarding, capsuleBoarding, altitudeAt(rawProgress));
         // Only real travel counts as "moving" (drives the 60 fps budget); the idle float/bob is ambient like the clouds.
         return distance > 1e-4 || runnerState.amplitude > 0.01;
       };
@@ -1171,7 +1171,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           diagnostics.calls = renderer.info.render.calls;
           diagnostics.triangles = renderer.info.render.triangles;
           diagnostics.pixelRatio = pixelRatio;
-          Object.assign(diagnostics, { balloonY: floaters[0]?.object.position.y ?? 0, markerScale: Math.max(...campMarkers.map(marker => marker.scale.y)), flagYaw: flags[0]?.rotation.y ?? 0, runnerScaleY: runner.scale.y, weather: { rain: weather.state.rain, wind: weather.state.wind, snow: weather.state.snow, gust: weather.state.gust, wet: weather.state.wet, travel: weather.travel, impacts: weather.impactCount, treeBend: windTrees[0]?.object.rotation.z ?? 0, cloudX: mountainClouds[0].position.x, runnerLean: body.rotation.z, water: weather.water ? { ...weather.water.state, channels: weather.water.paths.length } : null }, jumpLift: Math.max(jump.pose.lift, skip.pose.lift) });
+          Object.assign(diagnostics, { balloonY: floaters[0]?.object.position.y ?? 0, markerScale: Math.max(...campMarkers.map(marker => marker.scale.y)), flagYaw: flags[0]?.rotation.y ?? 0, runnerScaleY: runner.scale.y, travelerScale: traveler.root.scale.x, travelerStage: traveler.stage, travelerOutfit: traveler.root.userData.lifeStage, aircraftScale: flight.aircraft.scale.x, spacecraftScale: spaceFlight.spacecraft.scale.x, weather: { rain: weather.state.rain, wind: weather.state.wind, snow: weather.state.snow, gust: weather.state.gust, wet: weather.state.wet, travel: weather.travel, impacts: weather.impactCount, treeBend: windTrees[0]?.object.rotation.z ?? 0, cloudX: mountainClouds[0].position.x, runnerLean: body.rotation.z, water: weather.water ? { ...weather.water.state, channels: weather.water.paths.length } : null }, jumpLift: Math.max(jump.pose.lift, skip.pose.lift) });
           diagnostics.frames++;
           diagnostics.cpuMs = performance.now() - renderStarted;
           diagnostics.aircraftY = flight.aircraft.position.y;
@@ -1231,6 +1231,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           environment.dispose();
           sun.shadow.dispose();
           travelerLighting.dispose();
+          traveler.dispose();
           renderer.dispose();
         };
         // compileAsync polls material programs: release them only after that polling has ended.
@@ -1243,7 +1244,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
   }, []);
 
   return <>
-    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง ฐานภูเขากว้างมีสวนผักและแปลงข้าว พร้อมชาวสวนสวมหมวกกำลังพรวนดิน มีนักวิ่งตัวเล็กออกจากกระท่อมบนพื้นดิน วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา ตัวละครขึ้นเครื่องบินจากยอดเขา บินผ่านเมฆพร้อมนกห้าตัวไปยังเกาะลอย แล้วเดินขึ้นยานอวกาศและนั่งในห้องนักบินขณะยานลอยขึ้นผ่านดาวเคราะห์ มีดาวหางตกช้า ๆ บริเวณด้านข้าง แทนการเดินทางของการเป็นโปรแกรมเมอร์">
+    <div ref={host} className="journey-stage" role="img" aria-label="โลกสามมิติแบบต่อเนื่อง ฐานภูเขากว้างมีสวนผักและแปลงข้าว พร้อมชาวสวนสวมหมวกกำลังพรวนดิน มีตัวละครนักศึกษาออกจากกระท่อมบนพื้นดิน เปลี่ยนเป็นวัยทำงานที่ 1,120 เมตร และชุดสูทสุภาพที่ 5,510 เมตร วิ่งขึ้นภูเขาผ่านแคมป์ทักษะแต่ละหมวด มีภูเขาด้านหลังเพิ่มอีกสองลูก ดวงอาทิตย์ส่องแสงและทอดเงาบนไหล่เขา ตัวละครขึ้นเครื่องบินจากยอดเขา บินผ่านเมฆพร้อมนกห้าตัวไปยังเกาะลอย แล้วเดินขึ้นยานอวกาศและนั่งในห้องนักบินขณะยานลอยขึ้นผ่านดาวเคราะห์ มีดาวหางตกช้า ๆ บริเวณด้านข้าง แทนการเดินทางของการเป็นโปรแกรมเมอร์">
       {failed && <div className="world-fallback"><span>△</span><p>โลกของการเรียนรู้ไม่มีที่สิ้นสุด</p><small>อุปกรณ์นี้แสดงฉากแบบเรียบง่าย</small></div>}
     </div>
     {!failed && <div className="skill-overlay" aria-hidden="true">

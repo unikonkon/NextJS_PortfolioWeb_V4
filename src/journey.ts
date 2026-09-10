@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 
+/** The actor, attached equipment and cockpit models share one physical scale. */
+export const travelerScale = 1.5;
+export const travelerStages = {
+  student: { label: 'นักศึกษา', from: 0 },
+  worker: { label: 'วัยทำงาน', from: 1120 },
+  professional: { label: 'วัยทำงาน · ชุดสุภาพ', from: 5510 },
+} as const;
+export type TravelerStage = keyof typeof travelerStages;
+/** Match the altimeter's displayed 10-metre steps; the professional outfit remains through 33,640 M and until space boarding. */
+export function travelerStageAtAltitude(metres: number): TravelerStage {
+  const displayed = Math.round(Math.max(0, metres) / 10) * 10;
+  return displayed >= travelerStages.professional.from ? 'professional' : displayed >= travelerStages.worker.from ? 'worker' : 'student';
+}
+
 export const chapters = [
   { id: 'ground', label: 'พื้นดิน', en: 'THE BEGINNING', altitude: '000', title: 'เริ่มจากโค้ดบรรทัดแรก', code: 'const journey = new Developer();', lesson: 'CURIOSITY → FOUNDATION' },
   { id: 'mountain', label: 'ภูเขา', en: 'THE CLIMB', altitude: '2,400', title: 'ทุกปัญหาคืออีกก้าวที่เติบโต', code: 'while (learning) { build(); }', lesson: 'CHALLENGES → EXPERIENCE' },

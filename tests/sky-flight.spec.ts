@@ -50,6 +50,7 @@ test('flight climbs continuously, uses six batches, and pauses its propeller and
   flight.sample(cruising, point, tangent);
   flight.update(cruising, 1, false, point);
   expect(flight.root.visible).toBe(true);
+  expect(flight.aircraft.scale.x).toBe(1.5);
   const propeller = flight.root.getObjectByName('airplane-propeller')!;
   const wing = flight.root.getObjectByName('flying-birds')!.children[1] as THREE.InstancedMesh;
   const rotation = propeller.rotation.z;
