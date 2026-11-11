@@ -1,6 +1,6 @@
 /* Layout of this file: tokens, base, shared pieces, then the page top to bottom (header, scene chrome, ground,
-   climb, chapters, mountain, sky, dialog, space), and finally one block per breakpoint, widest first.
-   Every selector has a single rule outside the breakpoint blocks. */
+   chapter breaks, chapters, mountain, sky, chapter motifs, dialog, space), and finally one block per breakpoint,
+   widest first. Outside the breakpoint blocks a selector has one rule of its own; a few also appear in a shared list. */
 
 /* ==== Tokens ==== */
 /* Static palette of the light reading surfaces. Change a colour, radius or panel fill here, not in the rules below. */
@@ -32,19 +32,19 @@
 .app[data-chapter=space] { --paper: #101a2d; --ink: #e7eddb; --muted: #9fb099; --line: #2c3a4f; --glass: #111b2ec9; --accent: #c7ed91; --accent-soft: #5b7350; --chrome: #172c3de8; --chrome-solid: #172c3d; --chrome-text: var(--space-text-soft); }
 /* Each section re-tints the shared surfaces instead of restyling every panel; the ground keeps the :root palette.
    The dialog sits outside the sections, so it takes the theme of the chapter it was opened from. */
-.mountain-section, .app[data-chapter=mountain] .project-dialog {
+.mountain-section, .climb-head, .app[data-chapter=mountain] .project-dialog {
   --text-strong: #33302b; --text: #514b43; --text-soft: #635b51; --text-faint: #a39a8c; --heading-accent: #b2591c; --on-dark: #faf6ef;
   --forest: #403d38; --leaf: #cf7632; --leaf-soft: #e2a271; --lime: #fcdcb0; --lime-soft: #f5c98f;
   --border: #d9d1c3; --border-soft: #e6e0d5; --surface: #f3f0ea; --surface-raised: #fbf9f5; --fill-soft: #e7e2d8;
-  --float: #f3f0eae8; --panel: #f3f0eaf2; --panel-solid: #f3f0eaf7;
+  --float: #f3f0eae8; --panel: #f3f0eaf7; --panel-solid: #f3f0eaf7; /* the most solid panel: stone */
 }
 .sky-section, .travel-to-sky, .app[data-chapter=sky] .project-dialog {
   --text-strong: #1e3550; --text: #36506d; --text-soft: #45617e; --text-faint: #8aa3bd; --heading-accent: #2a74b8; --on-dark: #f3f8fd;
   --forest: #1f4d7a; --leaf: #4f9bd9; --leaf-soft: #8fc0ea; --lime: #d6e9fb; --lime-soft: #b9d8f5;
   --border: #c5d6e8; --border-soft: #d9e5f1; --surface: #f1f7fd; --surface-raised: #fbfdff; --fill-soft: #dfeaf5;
-  --float: #f1f7fde8; --panel: #f1f7fdf2; --panel-solid: #f1f7fdf7;
+  --float: #f1f7fde8; --panel: #f1f7fde0; --panel-solid: #f1f7fdf7; /* the lightest panel: cloud */
 }
-.space-section { --float: #18333be6; --panel: #18333bef; --panel-solid: #18333bef; --glass-edge: #66878470; --heading-accent: var(--lime-soft); --text-strong: var(--space-text); --text: var(--space-text-soft); --text-soft: var(--space-text-faint); --border: var(--space-line); --border-soft: var(--space-line); }
+.space-section, .travel-to-space { --float: #18333be6; --panel: #18333bef; --panel-solid: #18333bef; --glass-edge: #66878470; --heading-accent: var(--lime-soft); --text-strong: var(--space-text); --text: var(--space-text-soft); --text-soft: var(--space-text-faint); --border: var(--space-line); --border-soft: var(--space-line); }
 
 /* ==== Base ==== */
 * { box-sizing: border-box; }
@@ -177,16 +177,23 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .hero-social a { display: flex; place-items: center; gap: 7px; height: 40px; color: var(--text-soft); }
 .hero-social a:hover { color: var(--text-strong); }
 
-/* ==== The climb and the flights between chapters ==== */
-.travel { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; min-height: 34svh; padding: 40px 25px; text-align: center; color: var(--text); }
-/* Give the mountain-to-sky flight 20% more scroll space. */
-.travel.travel-to-sky { min-height: 40.8svh; }
-.travel-line { width: 1px; height: 46px; margin: 0; background: var(--leaf); }
+/* ==== Chapter breaks: the climb and the flights between chapters ==== */
+.travel { position: relative; z-index: 1; color: var(--text); }
+/* A flight is a full screen with nothing over the scene but the chapter mark, which stays pinned on the left while the
+   3D flight plays. The mountain-to-sky flight keeps 20% more scroll space than the flight to space. */
+.travel-to-sky, .travel-to-space { min-height: 80svh; padding: 0 6%; }
+.travel.travel-to-sky { min-height: 96svh; }
+.chapter-mark { position: sticky; top: calc(var(--header-height) + 24svh); display: flex; align-items: center; gap: 24px; width: fit-content; max-width: 100%; text-align: left; }
+.chapter-number { font-size: clamp(120px, 15vw, 230px); font-weight: 700; line-height: .8; letter-spacing: -.05em; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--heading-accent) 14%, transparent); -webkit-text-stroke: 2px var(--heading-accent); }
+.chapter-mark-text { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.chapter-mark strong { display: flex; flex-direction: column; gap: 2px; padding: 8px 22px 12px; border: 1px solid var(--glass-edge); border-radius: var(--r-lg); background: var(--float); box-shadow: 0 12px 40px #233e3514; font-size: clamp(30px, 3.4vw, 46px); font-weight: 500; line-height: 1.3; letter-spacing: -.8px; color: var(--text-strong); }
+.chapter-mark strong > span { font-size: 11px; font-weight: 600; letter-spacing: 1.8px; color: var(--text-soft); }
 .travel-label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.travel-label, .travel small { padding: 9px 15px; border-radius: var(--r-pill); background: var(--float); font-size: 12px; letter-spacing: 0; color: var(--text); }
-/* Half the previous climb scroll distance (180/170svh); camps follow normalized journey progress. */
-.travel.climb { min-height: 90svh; justify-content: flex-start; gap: 12px; padding-top: 1svh; }
-.climb-head { display: flex; flex-direction: column; align-items: center; gap: 12px; opacity: var(--climb-fade, 1); transition: opacity .2s; }
+.travel-label, .chapter-mark small { padding: 9px 15px; border-radius: var(--r-pill); background: var(--float); font-size: 12px; letter-spacing: 0; color: var(--text); }
+/* The climb: camps follow normalized journey progress; its chapter mark fades out as the first skill cards pop. */
+.travel.climb { display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 90svh; padding: 1svh 25px 40px; text-align: center; }
+.climb-head { align-self: flex-start; margin: 5svh 0 0 calc(6vw - 25px); opacity: var(--climb-fade, 1); transition: opacity .2s; }
+.climb-head .chapter-mark { position: static; }
 .climb-note { position: relative; z-index: 1; max-width: 550px; margin: 26px auto 0; padding: 16px 22px; border: 1px solid var(--glass-edge); border-radius: var(--r-md); background: var(--float); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); text-align: center; }
 .climb-note .eyebrow { justify-content: center; }
 .climb-note h3 { margin-top: 6px; font-size: 21px; font-weight: 500; letter-spacing: -.4px; color: var(--text-strong); }
@@ -377,6 +384,35 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .code-success span { width: 4px; height: 4px; border-radius: 50%; background: #c5db9c; }
 .mini-chat, .mini-code, .mini-dashboard { max-width: 100%; }
 
+/* ==== 03 Sky, layout: no reading panel ==== */
+/* The controls, every project card and the legend float on the sky by themselves, so the scene shows between them. */
+.sky-section .chapter-content { padding: 0; border: 0; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+.sky-section .project-controls { padding: 10px 12px; border: 1px solid var(--glass-edge); border-radius: var(--r-lg); background: var(--panel); box-shadow: 0 12px 40px #1f4d7a1a; }
+.sky-section .result-count { width: fit-content; padding: 7px 14px; border-radius: var(--r-pill); background: var(--float); }
+.sky-section .project-grid { gap: 44px 28px; }
+.sky-section .project-card { border-color: var(--glass-edge); background: color-mix(in srgb, var(--surface-raised) 96%, transparent); box-shadow: 0 16px 44px #1f4d7a24; }
+.sky-section .project-card:hover { box-shadow: 0 22px 54px #1f4d7a33; }
+.sky-section .load-more { margin-top: 56px; }
+.sky-section .load-more .button { background: var(--panel); }
+.sky-section .load-more .button:hover { background: var(--surface-raised); }
+.sky-section .load-more > span { padding: 6px 13px; border-radius: var(--r-pill); background: var(--float); }
+.sky-section .empty-state { border: 1px solid var(--glass-edge); border-radius: var(--r-lg); background: var(--panel); }
+.sky-section .scene-legend { margin-top: 56px; padding: 16px 22px; border: 1px solid var(--glass-edge); border-radius: var(--r-lg); background: var(--panel); }
+
+/* ==== Chapter motifs ==== */
+/* The top edge of each chapter's panel is drawn in the shape of the chapter: rolling ground, a mountain ridge, cloud
+   tops. The shape is a mask over a strip of the panel's own fill, so it follows the chapter theme. */
+.hero-bottom, .mountain-section .chapter-content, .sky-section .project-controls, .sky-section .scene-legend { position: relative; }
+.hero-bottom::before, .mountain-section .chapter-content::before, .sky-section .project-controls::before, .sky-section .scene-legend::before { content: ''; position: absolute; left: 26px; right: 26px; bottom: 100%; background: var(--panel); pointer-events: none; }
+.hero-bottom::before { height: 16px; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 16' preserveAspectRatio='none'%3E%3Cpath d='M0 16C50 16 80 2 160 2S270 13 330 13 420 4 490 4 560 16 600 16Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 16' preserveAspectRatio='none'%3E%3Cpath d='M0 16C50 16 80 2 160 2S270 13 330 13 420 4 490 4 560 16 600 16Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+.mountain-section .chapter-content::before { height: 30px; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 30' preserveAspectRatio='none'%3E%3Cpath d='M0 30L26 17 48 22 92 6 126 18 168 10 204 21 262 3 306 16 340 11 392 22 436 7 478 19 520 12 560 22 600 30Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 30' preserveAspectRatio='none'%3E%3Cpath d='M0 30L26 17 48 22 92 6 126 18 168 10 204 21 262 3 306 16 340 11 392 22 436 7 478 19 520 12 560 22 600 30Z'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
+/* `round` fits a whole number of puffs, so the strip never ends on a cut one. */
+.sky-section .project-controls::before, .sky-section .scene-legend::before { height: 17px; -webkit-mask: radial-gradient(50% 100% at 50% 100%, #000 97%, #0000) 0 100% / 22px 11px round no-repeat, radial-gradient(50% 100% at 50% 100%, #000 97%, #0000) 0 100% / 46px 17px round no-repeat; mask: radial-gradient(50% 100% at 50% 100%, #000 97%, #0000) 0 100% / 22px 11px round no-repeat, radial-gradient(50% 100% at 50% 100%, #000 97%, #0000) 0 100% / 46px 17px round no-repeat; }
+/* Contour lines of the summit behind the mountain panel's first lines. */
+.mountain-section .chapter-content { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 460 400'%3E%3Cg fill='none' stroke='%23b2591c' stroke-opacity='.15' stroke-width='1.2'%3E%3Cellipse cx='200' cy='200' rx='30' ry='22' transform='rotate(-20 200 200)'/%3E%3Cellipse cx='204' cy='198' rx='62' ry='46' transform='rotate(-14 200 200)'/%3E%3Cellipse cx='210' cy='202' rx='98' ry='72' transform='rotate(-22 200 200)'/%3E%3Cellipse cx='214' cy='206' rx='136' ry='100' transform='rotate(-12 200 200)'/%3E%3Cellipse cx='220' cy='204' rx='176' ry='130' transform='rotate(-18 200 200)'/%3E%3Cellipse cx='226' cy='210' rx='218' ry='162' transform='rotate(-10 200 200)'/%3E%3C/g%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right -110px top -90px; background-size: 520px auto; }
+.mountain-section .chapter-intro { margin-bottom: 54px; }
+.sky-section .chapter-intro { margin-bottom: 46px; }
+
 /* ==== Project dialog and screenshot gallery ==== */
 .project-dialog { width: min(780px, calc(100% - 32px)); max-height: 85vh; padding: 0; border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface-raised); box-shadow: 0 30px 100px #1b2d3055; color: var(--ink); }
 .project-dialog::backdrop { background: #14251db0; backdrop-filter: blur(7px); }
@@ -469,7 +505,26 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
   .chapter-intro h2, .chapter-intro .section-description, .chapter-intro .chapter-heading .eyebrow, .chapter-intro .altitude, .skill-card { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 }
 
+@media (min-width: 1101px) {
+  /* 02 Mountain: the reading column keeps to the left and the mountain stays in view on the right. Journey.tsx reads
+     the column's right edge and shifts the camera, so the summit sits in the middle of the free space. */
+  .mountain-section .chapter-intro, .mountain-section .chapter-content { width: min(60%, 800px); max-width: none; margin-inline: 0; }
+  .mountain-section .chapter-intro { text-align: left; }
+  .mountain-section .chapter-heading { justify-content: flex-start; }
+  .mountain-section .chapter-intro h2, .mountain-section .chapter-intro .section-description { margin-inline: 0; }
+  .mountain-section .story-layout { grid-template-columns: 1fr; gap: 30px; }
+  .mountain-section .mountain-visual { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .mountain-section .field-note { display: flex; flex-direction: column; justify-content: center; }
+  .mountain-section .field-note p { font-size: 18px; }
+  .mountain-section .work-tech { display: none; }
+  /* 03 Sky: three floating columns, the middle one a step lower. `translate` leaves the hover transform alone. */
+  .sky-section .project-card:nth-child(3n + 2) { translate: 0 22px; }
+  .sky-section .project-controls, .sky-section .scene-legend { -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+}
+
 @media (max-width: 1100px) {
+  /* No blur behind the floating sky bars at these widths, so their fill is nearly opaque instead. */
+  .sky-section { --panel: var(--panel-solid); }
   .hero-actions .button { padding-inline: 15px; gap: 15px; }
   .toolkit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .project-controls { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
@@ -513,6 +568,7 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
   .site-header, .hero-bottom, .chapter-content, .journey-status, .toolkit, .climb-note, .skill-card, .chapter-intro h2, .chapter-intro .section-description, .chapter-intro .chapter-heading .eyebrow, .chapter-intro .altitude, .project-dialog::backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
   /* Fully opaque: without the blur, anything translucent here lets the page text show through the header and menu. */
   .site-header, .main-nav { background: var(--chrome-solid); }
+  .sky-section .project-card { background: var(--surface-raised); }
   .main-nav { gap: 20px; }
   .hero-actions .button { min-height: 42px; padding: 12px 16px; }
   .hero-bottom { background: var(--float); }
@@ -572,9 +628,15 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
   .hero-facts { gap: 22px; }
   .hero-stat strong { font-size: 29px; }
   .hero-social { justify-content: center; gap: 24px; width: 100%; }
-  .travel { min-height: 32svh; }
-  .travel.travel-to-sky { min-height: 38.4svh; }
+  .travel-to-sky, .travel-to-space { min-height: 55svh; padding-inline: 18px; }
+  .travel.travel-to-sky { min-height: 66svh; }
   .travel.climb { min-height: 85svh; padding-top: 5svh; }
+  .chapter-mark { top: calc(var(--header-height) + 10svh); flex-direction: column; align-items: center; gap: 8px; margin-inline: auto; text-align: center; }
+  .chapter-number { font-size: 104px; -webkit-text-stroke-width: 1.5px; }
+  .chapter-mark-text { align-items: center; gap: 8px; }
+  .chapter-mark strong { align-items: center; padding: 6px 18px 10px; font-size: 28px; }
+  .climb-head { align-self: center; margin: 0; }
+  .mountain-section .chapter-intro, .sky-section .chapter-intro { margin-bottom: 40px; }
   .climb-note { padding: 14px 16px; }
   .climb-note h3 { font-size: 19px; }
   .skill-card { padding: 10px 10px 9px; }

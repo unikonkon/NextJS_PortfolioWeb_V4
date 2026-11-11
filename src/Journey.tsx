@@ -9,6 +9,7 @@ import { batchStaticScene, createCloudGeometry, createPineCrown, createPlanet, c
 import { advanceRunStride, altitudeAt, altitudes, blend, clamp, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
 import { createMountainFarm } from './MountainFarm';
+import { createWildlife } from './Wildlife';
 import { createSkyFlight, flightBoarding, flightEnd, flightRevealStart, flightStart } from './SkyFlight';
 import { createSpaceEffects, createSpaceFlight, spaceBoarding, spaceBoardingStart } from './SpaceFlight';
 
@@ -599,6 +600,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       cloud([-1.6, 19.6, -1.4], 1, 0.6);
       cloud([2.6, 20.6, 0.6], 0.7, 1.1);
       cloud([-4.2, 21.4, 0], 0.6, 0.9);
+      // A thicker cloud deck for the sky chapter: large banks towards the edges of the view, in front of and behind
+      // the column, so the floating project cards have weather to drift through. Phones get the two nearest ones.
+      const cloudDeck: [Vec, number, number][] = [[[-6.2, 13.6, 2.8], 1.35, 0.5], [[6.0, 15.2, 2.4], 1.15, 0.75], [[0.6, 17.8, -3.4], 1.5, 0.4], [[-5.6, 18.9, -2.8], 1.2, 0.65], [[5.4, 20.1, 2.6], 0.95, 1]];
+      for (const [position, scale, speed] of cloudDeck.slice(0, mobile ? 2 : cloudDeck.length)) cloud(position, scale, speed);
 
       /* ---------- Chapter 4 · Space: the next frontier ---------- */
       const planetModel = createPlanet(materials);
@@ -628,6 +633,9 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       stage.add(starField);
 
       stage = world;
+      // Animals of the first three chapters: butterflies in the garden, eagles below the summit, gulls in the sky.
+      const wildlife = createWildlife([farm.root.position.x, farm.root.position.y, farm.root.position.z], summit, lift + 14.6, mobile, materials);
+      world.add(wildlife.root);
       const spaceEffects = createSpaceEffects(materials);
       camera.add(spaceEffects.root);
       scene.add(camera);
@@ -950,7 +958,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         water.roughness = 0.2; water.metalness = 0.24;
       }
       batchStaticScene(world, new Set<THREE.Object3D>([
-        runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays, weather.root,
+        runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays, weather.root, wildlife.root,
         ...(weather.water ? [weather.water.root] : []), ...windTrees.map(item => item.object),
         ...clouds.map(item => item.group), ...floaters.map(item => item.object), ...flagGroups, ...campMarkers,
       ]));
@@ -980,6 +988,17 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       renderer.domElement.addEventListener('webglcontextlost', contextLost);
 
       let wide = true;
+      // Half-width of the view, and how far the view is moved sideways. On wide screens the mountain chapter reads in
+      // a column on the left (style.css, min-width 1101px); the scene then moves right, into the middle of the free
+      // space beside that column, and returns to the centre for the flight to the sky.
+      let halfWidth = 7;
+      let sideShift = 0;
+      let shift = 0;
+      const frameCamera = () => {
+        camera.left = -halfWidth - shift;
+        camera.right = halfWidth - shift;
+        camera.updateProjectionMatrix();
+      };
       const resize = () => {
         const width = window.innerWidth;
         const height = window.innerHeight;
@@ -988,12 +1007,12 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         wide = width > 800;
         const vertical = wide ? Math.max(5.8, 5.8 / aspect) : Math.max(6, 4.9 / aspect);
         const horizontal = vertical * aspect;
-        // The landscape stays centred beneath the full-width story at every viewport.
-        camera.left = -horizontal;
-        camera.right = horizontal;
+        halfWidth = horizontal;
+        const column = document.querySelector('.mountain-section .chapter-content')?.getBoundingClientRect();
+        sideShift = column && column.right < width * 0.72 ? ((column.right + width) / 2 / width - 0.5) * 2 * horizontal : 0;
         camera.top = vertical * 1.6;
         camera.bottom = -vertical * .4;
-        camera.updateProjectionMatrix();
+        frameCamera();
         renderer.setSize(width, height);
         cardWidth = Math.min(236, Math.round(width * 0.44)); // two cards (left + right) fit side by side on a 360px phone
         measureCards();
@@ -1075,7 +1094,14 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         if (pauseRef.current) runnerState.progress = progressNow;
         else runnerState.progress += (progressNow - runnerState.progress) * (1 - Math.exp(-delta / 250));
         if (!pauseRef.current) elapsed += delta / 1000;
+        const shiftGoal = sideShift * smooth((progressNow - 0.9) / 0.1) * (1 - smooth((progressNow - 1.62) / 0.12));
+        if (Math.abs(shiftGoal - shift) > 0.0005) {
+          shift = pauseRef.current ? shiftGoal : shift + (shiftGoal - shift) * (1 - Math.exp(-delta / 250));
+          frameCamera();
+          dirty = true;
+        }
         const mood = weather.update(runnerState.progress, elapsed, pauseRef.current);
+        wildlife.update(runnerState.progress, elapsed);
         const runnerMoved = updateRunner(runnerState.progress, delta);
         if (runnerMoved) dirty = true;
         active = distance > 0.002 || runnerMoved;

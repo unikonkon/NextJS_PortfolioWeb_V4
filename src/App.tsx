@@ -75,7 +75,7 @@ function ClimbNote() {
 // the cards fall back to the plain Toolkit grid; otherwise a visually-hidden list keeps the skills readable by assistive tech.
 function Climb({ fallback }: { fallback: boolean }) {
   return <div className="travel climb" id="toolkit">
-    <div className="climb-head" aria-hidden="true"><span className="travel-line" /><span className="travel-label"><ArrowUp size={12} /> บทที่ 2 · เดินทางสู่ภูเขา</span><small>ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา</small></div>
+    <div className="climb-head" aria-hidden="true"><ChapterMark to={chapters[1]} /></div>
     {fallback ? <Toolkit /> : <ul className="sr-only">{skillCategories.map(item => <li key={item.name}>{item.name}: {item.skills.join(', ')}</li>)}</ul>}
   </div>;
 }
@@ -85,9 +85,19 @@ function SceneLegend({ chapter }: { chapter: typeof chapters[number] }) {
   return <div className="scene-legend"><span className="legend-title">ในฉาก 3D ของบทนี้</span><ul aria-label={`สิ่งที่อยู่ในฉาก${chapter.label}`}>{chapter.legend.map(([color, name, meaning]) => <li key={name}><span className="legend-swatch" style={{ background: color }} aria-hidden="true" /><span><strong>{name}</strong> {meaning}</span></li>)}</ul></div>;
 }
 
-function Travel({ to }: { to: typeof chapters[number] }) {
+const travelNotes = ['', 'ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา', 'ข้ามยอดเขา ปล่อยไอเดียให้ลอยขึ้นฟ้า', 'ขึ้นยาน พ้นชั้นบรรยากาศ สู่โลกใบต่อไป'];
+
+// The mark of a chapter break: a large outlined chapter number beside the name of the chapter ahead. It keeps to one
+// side, so the 3D scene stays uncovered while the traveller moves on.
+function ChapterMark({ to }: { to: typeof chapters[number] }) {
   const index = chapters.indexOf(to);
-  return <div className={`travel travel-to-${to.id}`} aria-hidden="true"><span className="travel-line" /><span className="travel-label"><ArrowUp size={12} /> บทที่ {index + 1} · เดินทางสู่{to.label}</span><small>{['', 'ออกจากพื้นดิน มุ่งหน้าขึ้นภูเขา', 'ข้ามยอดเขา ปล่อยไอเดียให้ลอยขึ้นฟ้า', 'ขึ้นยาน พ้นชั้นบรรยากาศ สู่โลกใบต่อไป'][index]}</small></div>;
+  return <div className="chapter-mark"><span className="chapter-number">0{index + 1}</span><div className="chapter-mark-text"><span className="travel-label"><ArrowUp size={12} /> บทที่ {index + 1} · เดินทางสู่{to.label}</span><strong>{to.label}<span>{to.en} · {to.altitude}</span></strong><small>{travelNotes[index]}</small></div></div>;
+}
+
+// A full screen between two chapters with nothing over the scene but the chapter mark, which stays pinned while the
+// flight to the next chapter plays behind it.
+function Travel({ to }: { to: typeof chapters[number] }) {
+  return <div className={`travel travel-to-${to.id}`} aria-hidden="true"><ChapterMark to={to} /></div>;
 }
 
 function ProjectArt({ index }: { index: number }) {
