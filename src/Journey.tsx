@@ -8,8 +8,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { batchStaticScene, createCloudGeometry, createPineCrown, createPlanet, createRockRelief, noise3 } from './SceneAssets';
 import { advanceRunStride, altitudeAt, altitudes, blend, clamp, mountainRadiusAt, mountainSnowline, mountainTrailAngle, smooth, terrainNoise, travel } from './journeyMath';
 import { skillCategories } from '../data/skillCategories';
+import { workProjects } from '../data/workProject';
 import { createMountainFarm } from './MountainFarm';
 import { createWildlife } from './Wildlife';
+import { createStoryProps } from './StoryProps';
+import { sceneLabels } from './sceneStory';
 import { createSkyFlight, flightBoarding, flightEnd, flightRevealStart, flightStart } from './SkyFlight';
 import { createSpaceEffects, createSpaceFlight, spaceBoarding, spaceBoardingStart } from './SpaceFlight';
 
@@ -47,21 +50,29 @@ function colorAt(progress: number, out: THREE.Color, colors = palette) {
 
 interface JourneyProps {
   paused: boolean;
+  /** Id of the object the page is pointing at (a label id from sceneStory.ts, or a group of them), if any. */
+  spot?: string | null;
+  /** A one-off reaction: `count` changes every time the page asks for the reaction named `id`. */
+  pulse?: { id: string; count: number };
   onChapter: (index: number) => void;
   onProgress?: (progress: number) => void;
   /** Called once if WebGL is unavailable, so the page can show the skill cards as a plain grid instead. */
   onFallback?: () => void;
 }
 
-export default function Journey({ paused, onChapter, onProgress, onFallback }: JourneyProps) {
+export default function Journey({ paused, spot = null, pulse, onChapter, onProgress, onFallback }: JourneyProps) {
   const host = useRef<HTMLDivElement>(null);
   const cards = useRef<(HTMLDivElement | null)[]>([]);
+  const labelNodes = useRef<(HTMLDivElement | null)[]>([]);
+  const spotRef = useRef(spot);
+  const pulseRef = useRef(pulse);
   const pauseRef = useRef(paused);
   const chapterRef = useRef(onChapter);
   const progressRef = useRef(onProgress);
   const fallbackRef = useRef(onFallback);
   const [failed, setFailed] = useState(false);
   useEffect(() => { pauseRef.current = paused; }, [paused]);
+  useEffect(() => { spotRef.current = spot; pulseRef.current = pulse; }, [spot, pulse]);
   useEffect(() => { fallbackRef.current = onFallback; }, [onFallback]);
   useEffect(() => { if (failed) fallbackRef.current?.(); }, [failed]);
   useEffect(() => { chapterRef.current = onChapter; progressRef.current = onProgress; }, [onChapter, onProgress]);
@@ -199,6 +210,8 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const floaters: { object: THREE.Object3D; base: number; amplitude: number; phase: number }[] = [];
       const float = (object: THREE.Object3D, amplitude = 0.12, phase = 0) => floaters.push({ object, base: object.position.y, amplitude, phase });
 
+      const story = createStoryProps(materials);
+
       /* ---------- Chapter 1 · Ground: the island where the first line of code was written ---------- */
       // Broader foothill terrace supports the range and two farm plots without scaling the runner or cabin.
       const island = mesh(new THREE.CylinderGeometry(6.3, 4.5, 2.1, 48, 6), '#777260', [-1, -1.5, -1.3]);
@@ -214,6 +227,11 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       ([[-2.9, 0, 1.2], [-3.7, 0, 0.9], [-2.3, 0, 2.3], [2.6, 0, -0.9], [3.1, 0, 0.3], [4.4, 0, -0.6], [-3.5, 0, 3.2], [-1.1, 0, 3]] as Vec[]).forEach((position, index) => tree(position, 0.6 + (index % 3) * 0.16));
       const farm = createMountainFarm(materials);
       world.add(farm.root);
+      // Soil sensors in the beds: the farm is the IoT project built for farmers.
+      const sensors = story.sensors();
+      sensors.position.copy(farm.root.position);
+      sensors.rotation.y = farm.root.rotation.y;
+      world.add(sensors);
       // The cabin: where curiosity started. A warm window glows so it reads as "home" from far away.
       const cabin = group([-0.1, 0.02, 1.3]);
       box([1.25, 0.95, 1], '#e8d8b4', [0, 0.48, 0], cabin);
@@ -235,6 +253,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       box([0.14, 0.05, 0.1], '#e26d5a', [0.18, 0.42, 0.05], bench);
       box([0.1, 0.05, 0.1], '#6caaa9', [0.32, 0.42, -0.1], bench);
       box([0.08, 0.08, 0.08], '#f9cd75', [0.05, 0.43, 0.15], bench);
+      bench.add(story.board());
       // Signpost pointing up the mountain.
       const signpost = group([-1.35, 0, 2.55]);
       box([0.06, 1.15, 0.06], '#75604a', [0, 0.57, 0], signpost);
@@ -532,6 +551,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       });
       // Summit flag: the current chapter, planted at the top.
       const summitFlag = flag(summit, '#c7ed91', 1.15);
+      // One cairn per project delivered at work, beside the upper trail where the mountain chapter is read.
+      const cairns = [5.4, 6.4, 7.7, 8.9, 9.9, 11.0, 12.3].slice(0, workProjects.length).map((height, index) => {
+        const cairn = story.cairn(index);
+        cairn.position.set(...slopePoint(mainMountain, height, trailAngle(height) + (index % 2 ? 0.34 : -0.34), 0.02));
+        world.add(cairn);
+        return cairn;
+      });
       cloud([-4.6, 6.4, -0.6], 0.75, 0.7, true);
       cloud([3.8, 9.2, -2.4], 0.65, 0.9, true);
       cloud([-2.8, 12.6, 1.6], 0.55, 1.1, true);
@@ -578,13 +604,23 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       }
       const islandA = floatingIsland([-3.2, 14.4, -1], 1, 1.3);
       flag([0.4, 0.1, -0.4], '#e2a27a', 0.7, islandA);
-      floatingIsland([3.9, 18.9, -1.8], 0.8, 2.6);
+      const islandB = floatingIsland([3.9, 18.9, -1.8], 0.8, 2.6);
+      // Four islands, one per project category (the order of `projectCategories`), each with that category's emblem.
+      const categoryIslands = [islandA, floatingIsland([4.9, 13.2, 0.9], 0.78, 0.6), floatingIsland([-4.7, 17.9, -0.2], 0.72, 3.4), islandB];
+      const emblems = categoryIslands.map((island, index) => {
+        const emblem = group([-0.5, 0.11, -0.42], island);
+        emblem.rotation.y = Math.atan2(11, 14); // towards the camera
+        emblem.add(story.emblem(index));
+        return emblem;
+      });
+      const paperPlanes: THREE.Mesh[] = [];
       // Paper planes: small experiments sent out to see what flies.
       for (const [index, position] of ([[-1.4, 13.2, 1.6], [-3.6, 17.8, 0.4], [3.2, 14.6, 1.2]] as Vec[]).entries()) {
         const plane = mesh(new THREE.TetrahedronGeometry(0.36), '#fbfbf4', position);
         plane.scale.set(1.1, 0.25, 1.5);
         plane.rotation.set(0.2, index * 1.4, -0.35 + index * 0.2);
         float(plane, 0.15, index * 1.7);
+        paperPlanes.push(plane);
       }
       // Code tiles: little building blocks drifting between the clouds.
       ([['#c7ed91', -0.6, 18.4, 1.2], ['#f9cd75', 0.3, 13.6, -0.4], ['#e26d5a', -2.2, 16.1, 1.8], ['#6caaa9', 4.2, 16.9, 0.2]] as [string, number, number, number][]).forEach(([color, x, y, z], index) => {
@@ -611,7 +647,10 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       planet.position.set(-1.4, 26.2, -0.5);
       stage.add(planet);
       const ring = planetModel.ring;
-      mesh(new THREE.IcosahedronGeometry(0.5, 1), '#c0ac8f', [3.6, 24.4, -1.6]);
+      // Two moons for the two topics still being learned next to AI: system design and the development process.
+      const moons = [mesh(new THREE.IcosahedronGeometry(0.5, 1), '#c0ac8f', [3.6, 24.4, -1.6]), story.moon()];
+      moons[1].position.set(6.2, 27.0, -1.2);
+      stage.add(moons[1]);
       const satellite = group([-3.9, 30.2, -0.8]);
       box([0.34, 0.34, 0.34], '#d8dcd0', [0, 0, 0], satellite);
       mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4, 5), '#9aa397', [0, 0.35, 0], satellite);
@@ -636,6 +675,9 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       // Animals of the first three chapters: butterflies in the garden, eagles below the summit, gulls in the sky.
       const wildlife = createWildlife([farm.root.position.x, farm.root.position.y, farm.root.position.z], summit, lift + 14.6, mobile, materials);
       world.add(wildlife.root);
+      const released = story.balloons(6);
+      const viewRight = new THREE.Vector3(14, 0, -11).normalize(); // screen-right for the fixed view direction
+      world.add(released.mesh);
       const spaceEffects = createSpaceEffects(materials);
       camera.add(spaceEffects.root);
       scene.add(camera);
@@ -948,6 +990,103 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         }
       };
 
+      // Labels pinned to scene objects (texts in sceneStory.ts). A spot is a point in an object's own space, so a label
+      // follows a bobbing island or the rotating planet; `pop` is what springs when the page points at the spot.
+      interface Spot { object: THREE.Object3D; offset: THREE.Vector3; pop?: THREE.Object3D }
+      const at = (object: THREE.Object3D, x: number, y: number, z: number, pop?: THREE.Object3D): Spot => ({ object, offset: new THREE.Vector3(x, y, z), pop });
+      const spots: Record<string, Spot> = {
+        bench: at(bench, 0, 0.72, 0), farm: at(farm.root, 0.2, 0.5, 0), path: at(signpost, 0, 1.15, 0),
+        summit: at(summitFlag, 0.26, 1.15, 0, summitFlag),
+        balloon: at(balloon, 0, 4.6, 0), planes: at(paperPlanes[0], 0, 0.15, 0),
+        planet: at(planet, 0, 2.25, 0, planet), 'moon-0': at(moons[0], 0, 0.62, 0), 'moon-1': at(moons[1], 0, 0.6, 0),
+        satellite: at(satellite, 0, 0.7, 0, satellite), rocket: at(spaceFlight.spacecraft, 0, 1.3, 0),
+      };
+      milestoneFlags.forEach((item, index) => { spots[`flag-${index}`] = at(item.flag, 0.26, 0.86, 0, item.flag); });
+      cairns.forEach((cairn, index) => { spots[`work-${index}`] = at(cairn, 0, 0.5, 0, cairn); });
+      categoryIslands.forEach((island, index) => { spots[`island-${index}`] = at(island, 0, 0.9, 0, emblems[index]); });
+      // Ids the page uses for several spots at once.
+      const spotGroups: Record<string, string[]> = {
+        flags: milestoneFlags.map((_, index) => `flag-${index}`), current: ['flag-2', 'summit'],
+        cairns: cairns.map((_, index) => `work-${index}`), islands: categoryIslands.map((_, index) => `island-${index}`), moons: ['moon-0', 'moon-1'],
+        contact: ['planet', 'satellite'],
+      };
+      const spotIds = (id: string | null | undefined) => (id ? spotGroups[id] ?? [id] : []);
+      let pointed = new Set<string>();
+      let appliedSpot: string | null = null;
+      let appliedPulse = pulseRef.current?.count ?? 0;
+      const springSpots = (ids: string[]) => { if (!pauseRef.current) for (const id of ids) { const object = spots[id]?.pop; if (object) motion.pop(object, object === planet ? 0.9 : 0.62); } };
+      const labelAlpha: number[] = new Array(sceneLabels.length).fill(0);
+      const labelWidths: number[] = new Array(sceneLabels.length).fill(0);
+      // A label only shows where the scene is uncovered: every few frames the page is asked what lies over the
+      // label's point and over the middle of its text. The text takes its preferred side, the other side when that
+      // one is covered, and the label hides when both are.
+      const cover = '.site-header, .chapter-rail, .journey-status, .hero-copy, .hero-portrait, .hero-topline, .hero-bottom, .landscape-note, .climb-note, .toolkit, .chapter-mark, .chapter-intro h2, .chapter-intro .section-description, .chapter-heading > *, .availability, .mountain-section .chapter-content, .space-section .chapter-content, .project-controls, .result-count, .project-card, .load-more > *, .empty-state, .scene-legend';
+      const labelLeft: boolean[] = sceneLabels.map(label => label.side === 'left');
+      const labelClear: boolean[] = new Array(sceneLabels.length).fill(true);
+      let labelPass = 0;
+      const updateLabels = (delta: number) => {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        if (!width || !height) return;
+        const narrow = width < 700;
+        const k = pauseRef.current ? 1 : 1 - Math.exp(-delta / 180);
+        // Paused scenes only render on scroll, so they check on every frame; a running one every fifth.
+        const check = pauseRef.current || labelPass++ % 5 === 0;
+        const stageTop = check ? container.getBoundingClientRect().top : 0;
+        const open = (x: number, y: number) => x > 4 && x < width - 4 && !document.elementFromPoint(x, y + stageTop)?.closest(cover);
+        sceneLabels.forEach((label, index) => {
+          const node = labelNodes.current[index];
+          const spot = spots[label.id];
+          if (!node || !spot) return;
+          const focused = pointed.has(label.id);
+          // In its chapter a label fades with the scroll position; on-demand ones and, on phones, the less
+          // important ones wait until the page points at them.
+          let goal = smooth((progressNow - label.from) / 0.04) * (1 - smooth((progressNow - label.until + 0.04) / 0.04));
+          if (!focused && (label.onDemand || (narrow && !label.phone))) goal = 0;
+          let placed = false;
+          if (goal > 0 || labelAlpha[index] > 0.004) {
+            spot.object.localToWorld(projected.copy(spot.offset)).project(camera);
+            const x = ((projected.x + 1) / 2) * width;
+            const y = ((1 - projected.y) / 2) * height;
+            const inside = x > 6 && x < width - 6 && y > 10 && y < height - 10;
+            const text = labelWidths[index] || (labelWidths[index] = (node.lastElementChild as HTMLElement).offsetWidth);
+            // Phones have no room beside a point, so there the text sits above it (or below), slid sideways as far
+            // as needed to stay on screen.
+            const slide = narrow ? clamp(x, text / 2 + 8, width - text / 2 - 8) - x : 0;
+            if (check) {
+              const point = inside && open(x, y);
+              if (narrow) {
+                const fits = (side: number) => [-1, 1].every(end => open(x + slide + end * (text / 2 - 4), y + side * 18) && open(x + slide + end * (text / 2 - 4), y + side * 42));
+                labelClear[index] = point && (fits(-1) || fits(1));
+                if (labelClear[index]) labelLeft[index] = !fits(-1); // here: "below" instead of "to the left"
+              } else {
+                const preferred = label.side === 'left' ? -1 : 1;
+                // Four corners of the text; below it, room for the shaped edge some panels draw above their box.
+                const fits = (side: number) => [text / 2 + 22, text + 24].every(reach => open(x + side * reach, y - 14) && open(x + side * reach, y + 30));
+                labelClear[index] = point && (fits(preferred) || fits(-preferred));
+                if (labelClear[index]) labelLeft[index] = (fits(preferred) ? preferred : -preferred) < 0;
+              }
+            }
+            if (!labelClear[index]) goal = 0;
+            labelAlpha[index] += (goal - labelAlpha[index]) * k;
+            if (Math.abs(goal - labelAlpha[index]) < 0.004) labelAlpha[index] = goal;
+            if (inside && labelAlpha[index] > 0.004) {
+              const flipped = labelLeft[index];
+              node.classList.toggle('stacked', narrow);
+              node.classList.toggle('to-left', flipped && !narrow);
+              node.classList.toggle('below', flipped && narrow);
+              node.classList.toggle('is-pointed', focused);
+              node.style.visibility = 'visible';
+              node.style.opacity = labelAlpha[index].toFixed(3);
+              if (narrow) node.style.setProperty('--slide', `${slide.toFixed(1)}px`);
+              node.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)${narrow ? '' : ` translate(${flipped ? 'calc(-100% + 5px)' : '-5px'}, -50%)`}`;
+              placed = true;
+            }
+          }
+          if (!placed && node.style.visibility !== 'hidden') { node.style.visibility = 'hidden'; node.style.opacity = '0'; }
+        });
+      };
+
       // Give each material an appropriate response instead of one matte finish for every object.
       for (const color of ['#777260', '#626859', '#858a78', '#a0aa91']) {
         const rock = material(color) as THREE.MeshStandardMaterial;
@@ -958,7 +1097,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         water.roughness = 0.2; water.metalness = 0.24;
       }
       batchStaticScene(world, new Set<THREE.Object3D>([
-        runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays, weather.root, wildlife.root,
+        runner, farm.root, flight.root, spaceFlight.root, planet, mountainSun, sunRays, weather.root, wildlife.root, ...cairns,
         ...(weather.water ? [weather.water.root] : []), ...windTrees.map(item => item.object),
         ...clouds.map(item => item.group), ...floaters.map(item => item.object), ...flagGroups, ...campMarkers,
       ]));
@@ -1016,6 +1155,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         renderer.setSize(width, height);
         cardWidth = Math.min(236, Math.round(width * 0.44)); // two cards (left + right) fit side by side on a 360px phone
         measureCards();
+        labelWidths.fill(0);
         dirty = true;
       };
       window.addEventListener('resize', resize);
@@ -1114,6 +1254,22 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           satellite.rotation.y = elapsed * 0.4;
           dirty = true;
         }
+        // What the page points at: the spot's label lights up and the object itself springs once.
+        if (spotRef.current !== appliedSpot) {
+          appliedSpot = spotRef.current;
+          pointed = new Set(spotIds(appliedSpot));
+          springSpots([...pointed]);
+          dirty = true;
+        }
+        const request = pulseRef.current;
+        if (request && request.count !== appliedPulse) {
+          appliedPulse = request.count;
+          // Balloons need the free margins beside the project cards, which only wide screens have.
+          if (request.id !== 'balloons') springSpots(spotIds(request.id));
+          else if (!pauseRef.current && window.innerWidth > 1100) released.launch(elapsed, target, viewRight, halfWidth - 0.85);
+          dirty = true;
+        }
+        if (released.update(elapsed)) dirty = true;
         if (!dirty) return;
         dirty = false;
         const renderStarted = diagnostics ? performance.now() : 0;
@@ -1198,6 +1354,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         renderer.render(scene, camera);
         if (renderer.domElement.style.visibility === 'hidden') { renderer.domElement.style.visibility = 'visible'; renderer.domElement.style.opacity = '1'; }
         updateSkillCards(delta);
+        updateLabels(delta);
         if (diagnostics) {
           diagnostics.calls = renderer.info.render.calls;
           diagnostics.triangles = renderer.info.render.triangles;
@@ -1211,7 +1368,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       };
       resize();
       // Chip wrapping depends on the web fonts, so re-measure the cards once they are in.
-      document.fonts?.ready.then(() => { if (!disposed) { measureCards(); dirty = true; } });
+      document.fonts?.ready.then(() => { if (!disposed) { measureCards(); labelWidths.fill(0); dirty = true; } });
       updateRunner(0, 16);
       let disposed = false;
       // Compile every chapter's materials before showing the canvas, including currently hidden vehicles.
@@ -1284,6 +1441,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         <h3>{item.name}</h3>
         <ul className="skill-chips">{item.skills.map(skill => <li key={skill}>{skill}</li>)}</ul>
       </div>)}
+      {sceneLabels.map((label, index) => <div key={label.id} ref={element => { labelNodes.current[index] = element; }} className="scene-label"><i /><p><strong>{label.title}</strong>{label.note}</p></div>)}
     </div>}
   </>;
 }
