@@ -17,6 +17,8 @@ function webImage(source: string, thumb = false) {
   const name = source.replace(/^\/project\//, '').replace(/\.[^.]+$/, '');
   return encodeURI(`/project-web/${thumb ? 'thumbs/' : ''}${name}.webp`);
 }
+// Browser chrome colour per chapter: the --chrome-solid tokens in style.css.
+const themeColors = { ground: '#f4f7ed', mountain: '#f3f0ea', sky: '#f1f7fd', space: '#172c3d' };
 const chapters = [
   { id: 'ground', label: 'พื้นดิน', en: 'THE BEGINNING', altitude: '000 M', legend: [['#e8d8b4', 'กระท่อม', 'บ้านหลังเล็กที่บรรทัดแรกของโค้ดถูกเขียนขึ้น'], ['#c7ed91', 'โต๊ะทดลอง', 'รากฐานจากวิศวกรรมอิเล็กทรอนิกส์ IoT และ Arduino'], ['#d9c9a2', 'ทางเดิน', 'เส้นทางที่ทอดขึ้นสู่ภูเขาลูกแรกของสายอาชีพ']] },
   { id: 'mountain', label: 'ภูเขา', en: 'THE CLIMB', altitude: '2,400 M', legend: [['#e8c46a', 'ธงตามทาง', 'แต่ละก้าวในสายอาชีพ 2020 · 2022 · 2023'], ['#c7ed91', 'ยอดเขา', 'ธงสีเขียวคือตำแหน่งปัจจุบันที่ iApp Technology']] },
@@ -191,7 +193,7 @@ export default function App() {
 
   useEffect(() => () => clearTimeout(copyTimeout.current), []);
   // The mobile browser bar matches the header, which turns dark in the space chapter.
-  useEffect(() => { document.querySelector('meta[name="theme-color"]')?.setAttribute('content', active === 'space' ? '#172c3d' : '#f4f7ed'); }, [active]);
+  useEffect(() => { document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColors[active as keyof typeof themeColors] ?? themeColors.ground); }, [active]);
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
     const sync = () => setPaused(preference.matches);

@@ -33,13 +33,15 @@ const stations = [
   new THREE.Vector3(0.4, 20.5 + lift, 0),
   new THREE.Vector3(0.4, 24.5 + lift, 0),
 ];
-// Backdrop colours for each chapter (light → deep space).
-const palette = ['#f4f1e4', '#e2e8dd', '#cfe1ef', '#101a2d', '#070b17'].map(hex => new THREE.Color(hex));
+// One sky per chapter, matching the chapter themes in style.css: morning cream over the ground, golden light on the
+// mountain, clear blue in the sky, then night. `ambience` tints the ambient light the same way.
+const palette = ['#f7efd8', '#f3cb98', '#9dcdf5', '#101a2d', '#070b17'].map(hex => new THREE.Color(hex));
+const ambience = ['#fff9ec', '#ffe7c9', '#e8f3ff', '#ffffff', '#ffffff'].map(hex => new THREE.Color(hex));
 
-function colorAt(progress: number, out: THREE.Color) {
-  const q = clamp(progress, 0, palette.length - 1);
-  const index = Math.min(Math.floor(q), palette.length - 2);
-  return out.copy(palette[index]).lerp(palette[index + 1], blend(q - index));
+function colorAt(progress: number, out: THREE.Color, colors = palette) {
+  const q = clamp(progress, 0, colors.length - 1);
+  const index = Math.min(Math.floor(q), colors.length - 2);
+  return out.copy(colors[index]).lerp(colors[index + 1], blend(q - index));
 }
 
 interface JourneyProps {
@@ -453,7 +455,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       const sunWorldPosition = new THREE.Vector3();
       const mountainLightTarget = new THREE.Vector3();
       const daylightColor = new THREE.Color('#fff4d9');
-      const mountainLightColor = new THREE.Color('#ffdfa3');
+      const mountainLightColor = new THREE.Color('#ffd08f');
       const overcastColor = new THREE.Color('#cdd6e2');
       const weather = createWeather(world, mobile, pixelRatio, [...terrain.map(item => item.surface), turf], true);
       // Cloud banks passing over the slopes use the same accumulated wind travel as the precipitation.
@@ -1111,7 +1113,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         sun.intensity *= 1 - mood.dim * 0.7;
         hemisphere.intensity *= 1 - mood.dim * 0.5;
         sun.color.lerp(overcastColor, mood.cool * 0.75);
-        hemisphere.color.copy(cloudDayColor).lerp(cloudSnowColor, mood.cool);
+        colorAt(progressNow, hemisphere.color, ambience).lerp(cloudSnowColor, mood.cool);
         sunDiscMaterial.opacity *= 1 - mood.dim * 1.5;
         glowMaterial.opacity *= 1 - mood.dim * 1.8;
         rayMaterial.uniforms.strength.value *= 1 - Math.min(1, mood.dim * 2.4);

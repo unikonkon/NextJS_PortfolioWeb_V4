@@ -20,14 +20,30 @@
   --r-sm: 6px; --r-md: 12px; --r-lg: 20px; --r-pill: 999px;
   --header-height: 76px;
   /* Written by Journey.tsx on every frame. */
-  --sky-top: #f4f1e4; --sky-bottom: #f4f1e4; --stars: 0;
-  font-family: 'DM Sans', 'IBM Plex Sans Thai', sans-serif; font-weight: 400; font-synthesis: none; color: var(--text-strong); background: #f4f1e4;
+  --sky-top: #f7efd8; --sky-bottom: #f7efd8; --stars: 0;
+  font-family: 'DM Sans', 'IBM Plex Sans Thai', sans-serif; font-weight: 400; font-synthesis: none; color: var(--text-strong); background: #f7efd8;
 }
-/* Chapter-aware tokens for the chrome that stays on screen (header, chapter rail, HUD): they turn dark in space. */
-.app { --paper: #f6f6ee; --ink: #293b30; --muted: #7b8377; --line: #dce0d2; --glass: #f7f8efc9; --accent: #687e52; --accent-soft: #a4b290; position: relative; isolation: isolate; color: var(--ink); transition: color .5s; }
-.app[data-chapter=space] { --paper: #101a2d; --ink: #e7eddb; --muted: #9fb099; --line: #2c3a4f; --glass: #111b2ec9; --accent: #c7ed91; --accent-soft: #5b7350; }
-/* The sky and space sections tint the shared surfaces instead of restyling every panel. */
-.sky-section { --float: #f1f7f3e8; --panel: #f1f7f3f2; --panel-solid: #f1f7f3f7; --heading-accent: #678b7e; }
+/* Every chapter has its own colour story, shared by the reading surfaces, the chrome and the sky of the 3D scene
+   (palette in Journey.tsx): leaf green on morning cream, sun orange on warm stone, clear blue on white, lime on night.
+   Chapter-aware tokens for the chrome that stays on screen (header, chapter rail, HUD) follow the active chapter. */
+.app { --paper: #f6f6ee; --ink: #293b30; --muted: #7b8377; --line: #dce0d2; --glass: #f7f8efc9; --accent: #687e52; --accent-soft: #a4b290; --chrome: #f4f7ede8; --chrome-solid: #f4f7ed; --chrome-text: #4d684d; position: relative; isolation: isolate; color: var(--ink); transition: color .5s; }
+.app[data-chapter=mountain] { --paper: #f5f2ec; --ink: #33302b; --muted: #8a8377; --line: #e0d9cc; --glass: #f5f2ecc9; --accent: #b2591c; --accent-soft: #dfa97c; --chrome: #f3f0eae8; --chrome-solid: #f3f0ea; --chrome-text: #635b51; }
+.app[data-chapter=sky] { --paper: #f3f8fd; --ink: #1e3550; --muted: #7a8fa5; --line: #d2e0ee; --glass: #f3f8fdc9; --accent: #2a74b8; --accent-soft: #9bc4e9; --chrome: #f1f7fde8; --chrome-solid: #f1f7fd; --chrome-text: #45617e; }
+.app[data-chapter=space] { --paper: #101a2d; --ink: #e7eddb; --muted: #9fb099; --line: #2c3a4f; --glass: #111b2ec9; --accent: #c7ed91; --accent-soft: #5b7350; --chrome: #172c3de8; --chrome-solid: #172c3d; --chrome-text: var(--space-text-soft); }
+/* Each section re-tints the shared surfaces instead of restyling every panel; the ground keeps the :root palette.
+   The dialog sits outside the sections, so it takes the theme of the chapter it was opened from. */
+.mountain-section, .app[data-chapter=mountain] .project-dialog {
+  --text-strong: #33302b; --text: #514b43; --text-soft: #635b51; --text-faint: #a39a8c; --heading-accent: #b2591c; --on-dark: #faf6ef;
+  --forest: #403d38; --leaf: #cf7632; --leaf-soft: #e2a271; --lime: #fcdcb0; --lime-soft: #f5c98f;
+  --border: #d9d1c3; --border-soft: #e6e0d5; --surface: #f3f0ea; --surface-raised: #fbf9f5; --fill-soft: #e7e2d8;
+  --float: #f3f0eae8; --panel: #f3f0eaf2; --panel-solid: #f3f0eaf7;
+}
+.sky-section, .travel-to-sky, .app[data-chapter=sky] .project-dialog {
+  --text-strong: #1e3550; --text: #36506d; --text-soft: #45617e; --text-faint: #8aa3bd; --heading-accent: #2a74b8; --on-dark: #f3f8fd;
+  --forest: #1f4d7a; --leaf: #4f9bd9; --leaf-soft: #8fc0ea; --lime: #d6e9fb; --lime-soft: #b9d8f5;
+  --border: #c5d6e8; --border-soft: #d9e5f1; --surface: #f1f7fd; --surface-raised: #fbfdff; --fill-soft: #dfeaf5;
+  --float: #f1f7fde8; --panel: #f1f7fdf2; --panel-solid: #f1f7fdf7;
+}
 .space-section { --float: #18333be6; --panel: #18333bef; --panel-solid: #18333bef; --glass-edge: #66878470; --heading-accent: var(--lime-soft); --text-strong: var(--space-text); --text: var(--space-text-soft); --text-soft: var(--space-text-faint); --border: var(--space-line); --border-soft: var(--space-line); }
 
 /* ==== Base ==== */
@@ -63,7 +79,7 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 24px; min-height: 47px; padding: 15px 21px; border: 1px solid transparent; border-radius: var(--r-sm); font-size: 13px; transition: transform .2s, background .2s; }
 .button:hover { transform: translateY(-2px); }
 .primary { background: var(--forest); color: var(--on-dark); }
-.primary:hover { background: #426147; }
+.primary:hover { background: color-mix(in srgb, var(--forest) 90%, #fff); }
 .secondary { border-color: var(--border); background: transparent; }
 .secondary:hover { background: var(--fill-soft); }
 .lime { margin-top: 26px; background: var(--lime); color: var(--forest); }
@@ -80,20 +96,18 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .flag-mark { display: inline-block; width: 9px; height: 9px; border-radius: 2px; box-shadow: inset 0 0 0 1px #0000001f; }
 
 /* ==== Header ==== */
-.site-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; height: var(--header-height); padding: 0 5%; border-bottom: 1px solid var(--line); background: var(--float); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--ink); transition: background .5s, color .5s, border-color .5s; }
+.site-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; height: var(--header-height); padding: 0 5%; border-bottom: 1px solid var(--line); background: var(--chrome); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--ink); transition: background .5s, color .5s, border-color .5s; }
 .brand { display: flex; align-items: center; gap: 9px; font-size: 25px; font-weight: 700; letter-spacing: -1px; }
 .brand-icon { display: grid; place-items: center; width: 35px; height: 35px; border: 1px solid var(--line); border-radius: 50%; }
-.brand-period { margin-left: -9px; color: var(--text-faint); }
-.main-nav { display: flex; align-items: center; gap: 36px; font-size: 12px; color: var(--text-soft); }
+.brand-period { margin-left: -9px; color: color-mix(in srgb, var(--accent) 75%, var(--paper)); }
+.main-nav { display: flex; align-items: center; gap: 36px; font-size: 12px; color: var(--chrome-text); transition: color .5s; }
 .main-nav a { padding: 6px 0; border-bottom: 2px solid transparent; transition: color .2s, border-color .2s; }
 .main-nav a:hover { color: var(--ink); }
 .main-nav a.active { border-color: var(--accent); color: var(--ink); }
 .main-nav a > span { margin-left: 4px; padding: 2px 5px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--ink) 9%, transparent); font-size: 11px; }
 .header-contact { display: flex; align-items: center; gap: 21px; padding: 9px 0; border-bottom: 1px solid var(--muted); font-size: 12px; }
 .menu-toggle { display: none !important; }
-.app[data-chapter='space'] .site-header { background: #172c3de8; color: var(--space-text); }
-.app[data-chapter='space'] .main-nav { color: var(--space-text-soft); }
-.app[data-chapter='space'] .main-nav.open { background: #172c3d; }
+.app[data-chapter='space'] .site-header { color: var(--space-text); }
 
 /* ==== Scene chrome: backdrop, 3D stage, chapter rail, HUD ==== */
 .journey-backdrop { position: fixed; inset: 0; z-index: -2; background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 48%, var(--sky-bottom) 100%); pointer-events: none; }
@@ -115,6 +129,7 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 /* Chapter HUD: a readable pill in the bottom-right corner, clear of the centred reading column. Near-solid fill, so
    it reads over any content with or without the blur. */
 .journey-status { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 30; display: flex; align-items: center; gap: 9px; max-width: calc(100% - 24px); padding: 5px 6px 5px 13px; border: 1px solid var(--line); border-radius: var(--r-pill); background: color-mix(in srgb, var(--paper) 96%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); box-shadow: 0 3px 18px #344c270b; font-size: 11px; color: var(--ink); white-space: nowrap; transition: background .5s, color .5s, border-color .5s; }
+.journey-status .status-dot { background: color-mix(in srgb, var(--accent) 60%, var(--paper)); transition: background .5s; }
 .journey-chapter-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .journey-chapter-en { font-weight: 400; color: color-mix(in srgb, var(--ink) 75%, transparent); }
 .status-separator { width: 1px; height: 14px; flex-shrink: 0; background: var(--line); }
@@ -230,7 +245,7 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .timeline { margin-top: 6px; padding-left: 29px; border-left: 1px solid var(--border); }
 .timeline article { position: relative; max-width: none; padding-bottom: 36px; }
 .timeline article:last-child { padding-bottom: 0; }
-.timeline article::before { content: ''; position: absolute; top: 3px; left: -33px; width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); box-shadow: 0 0 0 5px #eff4e8; }
+.timeline article::before { content: ''; position: absolute; top: 3px; left: -33px; width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); box-shadow: 0 0 0 5px var(--surface); }
 .timeline-year { display: flex; align-items: center; gap: 10px; font-size: 11px; letter-spacing: 1.1px; color: var(--text-soft); }
 .current-pill { padding: 3px 7px; border-radius: var(--r-sm); background: var(--fill-soft); font-size: 11px; letter-spacing: 0; }
 .timeline h3 { margin: 11px 0 5px; font-size: 20px; font-weight: 500; }
@@ -239,9 +254,9 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .mountain-visual { display: grid; gap: 18px; min-width: 0; }
 .story-photo { position: relative; margin: 0; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--fill-soft); box-shadow: 0 14px 40px #2e472f1c; }
 .story-photo img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; object-position: 30% center; }
-.story-photo figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 18px 16px; background: linear-gradient(transparent, #1f3325e0); font-size: 13px; line-height: 1.7; color: var(--on-dark); text-wrap: pretty; }
+.story-photo figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 18px 16px; background: linear-gradient(transparent, color-mix(in srgb, var(--forest) 62%, #000000e0)); font-size: 13px; line-height: 1.7; color: var(--on-dark); text-wrap: pretty; }
 .story-photo figcaption span { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: 1.2px; color: var(--lime-soft); }
-.field-note { padding: 20px 24px; border-left: 2px solid var(--leaf); border-radius: var(--r-md); background: #e4ecdca6; }
+.field-note { padding: 20px 24px; border-left: 2px solid var(--leaf); border-radius: var(--r-md); background: color-mix(in srgb, var(--fill-soft) 65%, transparent); }
 .field-note > span { font-size: 11px; letter-spacing: 0; color: var(--text-soft); }
 .field-note p { margin: 10px 0; font-size: 20px; line-height: 1.6; color: var(--text); }
 .field-note p br { display: none; }
@@ -365,6 +380,9 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 /* ==== Project dialog and screenshot gallery ==== */
 .project-dialog { width: min(780px, calc(100% - 32px)); max-height: 85vh; padding: 0; border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface-raised); box-shadow: 0 30px 100px #1b2d3055; color: var(--ink); }
 .project-dialog::backdrop { background: #14251db0; backdrop-filter: blur(7px); }
+/* Named per chapter instead of through a token: ::backdrop does not inherit custom properties in every browser. */
+.app[data-chapter=mountain] .project-dialog::backdrop { background: #241e18b0; }
+.app[data-chapter=sky] .project-dialog::backdrop { background: #10202fb0; }
 .project-dialog[open] { animation: dialog-in .26s cubic-bezier(.2, .8, .2, 1); }
 .project-dialog[open]::backdrop { animation: backdrop-in .26s ease; }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(14px) scale(.985); } }
@@ -494,8 +512,7 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
      More opaque fills stand in for the blur. */
   .site-header, .hero-bottom, .chapter-content, .journey-status, .toolkit, .climb-note, .skill-card, .chapter-intro h2, .chapter-intro .section-description, .chapter-intro .chapter-heading .eyebrow, .chapter-intro .altitude, .project-dialog::backdrop { -webkit-backdrop-filter: none; backdrop-filter: none; }
   /* Fully opaque: without the blur, anything translucent here lets the page text show through the header and menu. */
-  .site-header, .main-nav { background: var(--surface); }
-  .app[data-chapter=space] .site-header, .app[data-chapter=space] .main-nav { background: #172c3d; }
+  .site-header, .main-nav { background: var(--chrome-solid); }
   .main-nav { gap: 20px; }
   .hero-actions .button { min-height: 42px; padding: 12px 16px; }
   .hero-bottom { background: var(--float); }
