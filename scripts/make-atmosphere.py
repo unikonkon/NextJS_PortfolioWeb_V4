@@ -5,6 +5,7 @@ The files are the images behind the 3D scene (the `.atmo` layers in src/style.cs
 mountain ranges with snow caps, a sea of cloud, the Milky Way. Everything is flat shapes and gradients, in the
 low-poly spirit of the scene, with no filters, so the browser rasterises each file once and only moves it afterwards.
 Most files are tiles that repeat sideways without a seam: every curve is a sum of whole sine periods over the tile.
+That also lets the page slide a tile sideways for ever (the wind in the sky chapter) with no jump where it wraps.
 
 Run `python3 scripts/make-atmosphere.py` after changing a colour or a shape; the drawing is seeded, so the output
 only changes when this file does.
@@ -22,10 +23,11 @@ def n(value):
     return text.replace('0.', '.', 1) if text.startswith(('0.', '-0.')) else text
 
 
-def write(name, width, height, body, defs='', aspect=None):
+def write(name, width, height, body, defs='', aspect=None, top=0):
+    """Saves one drawing; `top` and `height` choose the strip of it that the file shows."""
     aspect = f' preserveAspectRatio="{aspect}"' if aspect else ''
     defs = f'<defs>{defs}</defs>' if defs else ''
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}"{aspect}>{defs}{body}</svg>\n'
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 {top} {width} {height}"{aspect}>{defs}{body}</svg>\n'
     (OUT / name).write_text(svg, encoding='utf8')
     print(f'{name:22} {len(svg) / 1024:5.1f} KB')
 
@@ -170,10 +172,10 @@ def wisps():
 
 
 def sky_clouds():
-    """A sea of cloud in three depths, lit from above, with two cumulus towers and two far-off balloons."""
+    """A sea of cloud in three depths, lit from above, with two cumulus towers. It is saved as two strips of one
+    drawing, the two far banks and the near one, so the page can blow them along at different speeds."""
     rng = random.Random(8)
     width, height = 1600, 520
-    defs = fade('a', '#f3f8ff', '#cfe2f6', 95, 290) + fade('b', '#ffffff', '#d6e7f8', 150, 410) + fade('c', '#ffffff', '#e2eefa', 250, 520)
 
     def bank(level, small, large, fill, towers=()):
         circles = []
@@ -195,14 +197,35 @@ def sky_clouds():
                     marks += f'<circle cx="{n(copy)}" cy="{n(cy)}" r="{n(r)}"/>'
         return f'<g fill="{fill}">{marks}<rect y="{n(level)}" width="{width}" height="{n(height - level)}"/></g>'
 
-    def balloon(x, y, s, colour):
-        return (f'<g opacity=".85"><path stroke="#8d7460" stroke-width=".6" d="M{n(x - s * 0.5)} {n(y + s * 0.7)}L{n(x - s * 0.2)} {n(y + s * 1.55)}M{n(x + s * 0.5)} {n(y + s * 0.7)}L{n(x + s * 0.2)} {n(y + s * 1.55)}"/>'
-                f'<ellipse cx="{n(x)}" cy="{n(y)}" rx="{n(s * 0.82)}" ry="{n(s)}" fill="{colour}"/><ellipse cx="{n(x)}" cy="{n(y)}" rx="{n(s * 0.3)}" ry="{n(s)}" fill="#f6e6cc"/>'
-                f'<rect x="{n(x - s * 0.24)}" y="{n(y + s * 1.5)}" width="{n(s * 0.48)}" height="{n(s * 0.36)}" fill="#9a7756"/></g>')
+    far = bank(170, 22, 44, 'url(#a)') + bank(265, 34, 66, 'url(#b)', towers=(560, 1290))
+    near = bank(385, 52, 98, 'url(#c)')
+    # src/style.css places the two strips by these numbers (`.cloud-far`, `.cloud-sea`).
+    write('sky-clouds-far.svg', width, 450, far, fade('a', '#f3f8ff', '#cfe2f6', 95, 290) + fade('b', '#ffffff', '#d6e7f8', 150, 410))
+    write('sky-clouds.svg', width, 250, near, fade('c', '#ffffff', '#e2eefa', 250, 520), top=270)
 
-    body = (bank(170, 22, 44, 'url(#a)') + balloon(430, 66, 10, '#e39b78') + balloon(1175, 104, 7, '#e9c46a')
-            + bank(265, 34, 66, 'url(#b)', towers=(560, 1290)) + bank(385, 52, 98, 'url(#c)'))
-    write('sky-clouds.svg', width, height, body, defs)
+
+def sky_fliers():
+    """The small things that move through the sky chapter, each in its own file because each moves by itself: a far
+    airliner on its vapour trail, two hot-air balloons, and the fan of sun rays (the sun is the top left corner)."""
+    trail = '<linearGradient id="t"><stop stop-color="#fff" stop-opacity="0"/><stop offset=".55" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity=".95"/></linearGradient>'
+    jet = ('<rect y="5" width="285" height="2" rx="1" fill="url(#t)"/><g fill="#fff"><ellipse cx="291" cy="6" rx="8.5" ry="1.6"/>'
+           '<path d="M284.5 6l-2.6-4.4h2.6l3.6 4.4zM291 6l-5.4 4.6h2.8l6.8-4.6z"/></g>')
+    write('sky-jet.svg', 300, 12, jet, trail)
+
+    for name, colour in (('a', '#e39b78'), ('b', '#e9c46a')):
+        x, y, s = 10, 11, 10
+        balloon = (f'<path stroke="#8d7460" stroke-width=".6" d="M{n(x - s * 0.5)} {n(y + s * 0.7)}L{n(x - s * 0.2)} {n(y + s * 1.55)}M{n(x + s * 0.5)} {n(y + s * 0.7)}L{n(x + s * 0.2)} {n(y + s * 1.55)}"/>'
+                   f'<ellipse cx="{x}" cy="{y}" rx="{n(s * 0.82)}" ry="{s}" fill="{colour}"/><ellipse cx="{x}" cy="{y}" rx="{n(s * 0.3)}" ry="{s}" fill="#f6e6cc"/>'
+                   f'<rect x="{n(x - s * 0.24)}" y="{n(y + s * 1.5)}" width="{n(s * 0.48)}" height="{n(s * 0.36)}" fill="#9a7756"/>')
+        write(f'sky-balloon-{name}.svg', 20, 31, balloon)
+
+    size = 400
+    glow = f'<radialGradient id="r" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="{size}"><stop stop-color="#fff" stop-opacity="0"/><stop offset=".3" stop-color="#fff" stop-opacity=".34"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+    rays = ''
+    for angle, spread in ((10, 2.6), (24, 4.2), (39, 2.2), (53, 3.8), (68, 2.8), (80, 1.8)):
+        a, b = math.radians(angle - spread), math.radians(angle + spread)
+        rays += f'M0 0L{n(size * 1.5 * math.cos(a))} {n(size * 1.5 * math.sin(a))} {n(size * 1.5 * math.cos(b))} {n(size * 1.5 * math.sin(b))}Z'
+    write('sky-rays.svg', size, size, f'<path fill="url(#r)" d="{rays}"/>', glow)
 
 
 STAR_COLOURS = ['#ffffff', '#dce8ff', '#ffe9c9', '#cfe0ff']
@@ -268,6 +291,6 @@ def space_twinkle():
 
 if __name__ == '__main__':
     OUT.mkdir(parents=True, exist_ok=True)
-    for draw in (ground_hills, ground_clouds, mountain_ridges, wisps, sky_clouds, space_band, space_stars, space_twinkle):
+    for draw in (ground_hills, ground_clouds, mountain_ridges, wisps, sky_clouds, sky_fliers, space_band, space_stars, space_twinkle):
         draw()
 

@@ -119,8 +119,8 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 /* One layer per chapter. The drawings are the SVG files in src/assets/air/ (made by scripts/make-atmosphere.py): the
    browser rasterises each once, so their detail costs nothing while scrolling. Journey.tsx fades the layers with the
    scroll position and hides the ones that are not showing. What holds still (sun, haze, light shafts, the Milky Way)
-   is the layer's own background; only what moves is a separate element, two per chapter, so very little is composited
-   on top of the WebGL canvas. --rise is how far the camera is above the chapter: the moving parts sink with it
+   is the layer's own background; only what moves is a separate element, two per chapter (more in the sky, where the
+   air is the subject), so very little is composited on top of the WebGL canvas. --rise is how far the camera is above the chapter: the moving parts sink with it
    (`translate`), which leaves `transform` free for the slow drift. Nothing here uses a filter, a mask or a
    backdrop-filter, and the tones stay close to the sky colour so the scene in front remains the subject. */
 /* Its own compositor layer: the sky colour behind it is repainted on every scroll frame, and this must not be. */
@@ -128,7 +128,8 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .atmo:not(.atmo-ground) { visibility: hidden; opacity: 0; }
 /* Journey.tsx switches the air off where WebGL runs in software: there every layer is blended on the CPU. */
 [data-air=off] .atmo, .journey-veil[data-air=off] { display: none; }
-.atmo > i { position: absolute; left: 0; right: 0; display: block; background-repeat: repeat-x; background-size: auto 100%; will-change: transform; }
+/* :where() keeps this default weaker than the one-class rules below, so a part can set its own left, right and size. */
+:where(.atmo) > i { position: absolute; left: 0; right: 0; display: block; background-repeat: repeat-x; background-size: auto 100%; will-change: transform; }
 /* 01 Ground: a low morning sun with its halo, haze along the horizon, small clouds, and three lines of hills with
    trees, two farmhouses and crop rows. */
 .atmo-ground { --sun: calc(100% - 29vh) 15vh; background: radial-gradient(circle at var(--sun), #fffbe6 0, #fff3c4 4.5vh, #ffeaa8b3 7vh, #ffe2a040 17vh, #ffe2a000 30vh), radial-gradient(circle at var(--sun), #fff6d800 33vh, #fff6d84d 34vh, #fff6d800 37vh), linear-gradient(to top, #fff8e2c7 0, #fff8e200 38%); }
@@ -139,16 +140,38 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .atmo-mountain { --sun: 86% 14%; background: radial-gradient(circle at var(--sun), #fff8dfe6 0, #fff3d099 9vh, #fff5d600 46vh), conic-gradient(from 188deg at var(--sun), #fff0 0deg, #fff6dc2e 9deg, #fff0 18deg, #fff6dc24 30deg, #fff0 41deg, #fff6dc2b 54deg, #fff0 66deg, #fff6dc1f 78deg, #fff0 90deg), linear-gradient(to top, #fff2dac7 0%, #fff2da00 52%); }
 .ridge { bottom: -17vh; height: 86vh; background-image: url('./assets/air/mountain-ridges.svg'); background-position: center bottom; translate: 0 calc(var(--rise) * 14vh); }
 .mist { top: 50vh; height: 38vh; left: -8%; right: -8%; background-image: url('./assets/air/wisps.svg'), linear-gradient(#fff6e400, #fff6e48c 48%, #fff6e48c 62%, #fff6e400); background-repeat: repeat-x, no-repeat; background-size: auto 100%, 100% 100%; translate: 0 calc(var(--rise) * 14vh); animation: air-drift 46s ease-in-out infinite alternate; }
-/* 03 Sky: a deeper blue overhead, the sun's glow and shafts, cirrus drifting high up, and a sea of cloud in three
-   depths with cumulus towers and two far-off balloons. */
-.atmo-sky { --sun: 8% -6%; background: radial-gradient(circle at var(--sun), #ffffffb3 0, #ffffff40 22vh, #fff0 52vh), conic-gradient(from 96deg at 8% -12%, #fff0 0deg, #ffffff2b 7deg, #fff0 14deg, #ffffff20 23deg, #fff0 31deg, #ffffff24 40deg, #fff0 50deg, #ffffff19 60deg, #fff0 70deg), linear-gradient(#3f8fdd47 0, #3f8fdd00 46%); }
-.cirrus { top: 2vh; height: 46vh; left: -8%; right: -8%; background-image: url('./assets/air/wisps.svg'); translate: 0 calc(var(--rise) * 8vh); animation: air-drift 70s ease-in-out infinite alternate; }
-.cloud-sea { bottom: -32vh; height: 70vh; left: -6%; right: -6%; background-image: url('./assets/air/sky-clouds.svg'); background-position: center bottom; translate: 0 calc(var(--rise) * 18vh); animation: air-drift 130s ease-in-out infinite alternate-reverse; }
+/* 03 Sky: a deeper blue overhead and the sun's glow, and the one chapter where the air itself is in motion, because
+   here the traveller is flying. A steady wind carries the cloud to the left, slower the farther off it is (cirrus
+   high up, the far banks of the cloud sea with their cumulus towers, the near bank), so the flight reads as heading
+   right like the plane in the scene; the sun's rays sweep slowly; an airliner crosses on its vapour trail now and
+   then; and three hot-air balloons rise out of the cloud sea. Every motion is a transform or an opacity on its own
+   layer, so none of it repaints. --u is one unit of the cloud sea drawing (make-atmosphere.py, sky_clouds). */
+.atmo-sky { --sun: 8% -6%; --u: calc(70vh / 520); background: radial-gradient(circle at var(--sun), #ffffffb3 0, #ffffff40 22vh, #fff0 52vh), linear-gradient(#3f8fdd47 0, #3f8fdd00 46%); }
+.rays { left: 8%; right: auto; top: -12vh; width: 104vh; height: 104vh; background: url('./assets/air/sky-rays.svg') 0 0 / 100% 100% no-repeat; transform-origin: 0 0; animation: air-rays 26s ease-in-out infinite alternate, air-glow 9s ease-in-out infinite alternate; }
+/* Wind: a strip one tile wider than the view slides left by exactly one tile (--tile), for ever, with no jump. */
+.cirrus, .cloud-far, .cloud-sea { right: calc(-1 * var(--tile)); background-size: var(--tile) 100%; animation: air-wind var(--lap) linear infinite; }
+.cirrus { --tile: 184vh; --lap: 230s; top: 2vh; height: 46vh; background-image: url('./assets/air/wisps.svg'); translate: 0 calc(var(--rise) * 8vh); }
+.cloud-far { --tile: calc(1600 * var(--u)); --lap: 170s; top: 62vh; height: calc(450 * var(--u)); background-image: url('./assets/air/sky-clouds-far.svg'); translate: 0 calc(var(--rise) * 15vh); }
+.cloud-sea { --tile: calc(1600 * var(--u)); --lap: 95s; top: 78.5vh; height: calc(250 * var(--u)); background-image: url('./assets/air/sky-clouds.svg'); translate: 0 calc(var(--rise) * 18vh); }
+/* The airliner flies along its own tilted axis, so the trail always points where it came from. It is out of sight
+   between flights, and stays so when motion is paused. */
+.jet { right: auto; top: 52vh; width: 60vh; height: 2.4vh; background: url('./assets/air/sky-jet.svg') 0 0 / 100% 100% no-repeat; transform-origin: 0 50%; opacity: 0; animation: air-jet 48s linear infinite; }
+/* Balloons start behind the near cloud bank; with motion paused each rests part of the way up (--rest). */
+.balloon { left: var(--at); right: auto; bottom: 0; width: calc(var(--size) * 20 / 31); height: var(--size); background: url('./assets/air/sky-balloon-a.svg') 0 0 / 100% 100% no-repeat; transform-origin: 50% 100%; translate: 0 var(--rest); opacity: .9; animation: air-ascent var(--lap) linear var(--head) infinite, air-sway 6s ease-in-out infinite alternate; }
+.balloon.b1 { --at: 8%; --size: 6vh; --lap: 66s; --head: -24s; --rest: -34vh; }
+.balloon.b2 { --at: 80%; --size: 4.4vh; --lap: 88s; --head: -60s; --rest: -47vh; background-image: url('./assets/air/sky-balloon-b.svg'); }
+.balloon.b3 { --at: 92%; --size: 3.2vh; --lap: 116s; --head: -6s; --rest: -26vh; }
 /* 04 Space: the Milky Way across the view, three faint nebulae, and bright stars that twinkle in two groups. */
 .atmo-space { background: url('./assets/air/space-band.svg') center / cover no-repeat, radial-gradient(42% 32% at 18% 26%, #5d4fa852, #5d4fa800 70%), radial-gradient(46% 36% at 84% 70%, #1f7f9052, #1f7f9000 70%), radial-gradient(30% 22% at 64% 14%, #a8568a38, #a8568a00 70%); }
 .twinkle { top: 0; bottom: 0; will-change: opacity; background: url('./assets/air/space-twinkle.svg') 40px 20px / 720px 720px; animation: air-twinkle 4.6s ease-in-out infinite alternate; }
 .twinkle.late { background-position: 400px 380px; background-size: 880px 880px; animation-duration: 6.4s; animation-delay: -3s; }
 @keyframes air-drift { from { transform: translate3d(-2.5%, 0, 0); } to { transform: translate3d(2.5%, 0, 0); } }
+@keyframes air-wind { to { transform: translate3d(calc(-1 * var(--tile)), 0, 0); } }
+@keyframes air-rays { from { rotate: -5deg; } to { rotate: 6deg; } }
+@keyframes air-glow { from { opacity: .5; } }
+@keyframes air-jet { 0% { transform: rotate(-10deg) translate3d(-62vh, 0, 0); opacity: 0; } 3%, 52% { opacity: 1; } 56%, 100% { transform: rotate(-10deg) translate3d(calc(100vw + 10vh), 0, 0); opacity: 0; } }
+@keyframes air-ascent { 0% { translate: 0 2vh; opacity: 0; } 10%, 82% { opacity: .9; } 100% { translate: 0 -88vh; opacity: 0; } }
+@keyframes air-sway { from { transform: translateX(-.8vh) rotate(-2.5deg); } to { transform: translateX(.8vh) rotate(2.5deg); } }
 @keyframes air-twinkle { from { opacity: .22; } }
 
 /* ==== Chapter crossings: what the traveller passes through, in front of the scene ==== */
@@ -158,9 +181,10 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .journey-veil > i { position: absolute; top: 0; left: 0; right: 0; display: block; visibility: hidden; will-change: transform, opacity; }
 /* Ground → mountain: a band of mist. */
 .veil-mist { height: 80vh; background: linear-gradient(#fff8ec00, #fff8eccc 30%, #fff8eceb 50%, #fff8eccc 70%, #fff8ec00); }
-/* Mountain → sky: a cloud bank taller than the screen, with billowing edges above and below and soft shading inside,
-   so the moment it fills the view still reads as cloud. */
-.veil-cloud { height: 130vh; background: radial-gradient(50% 100% at 50% 100%, #ffffff 97%, #0000) 0 0 / 210px 64px repeat-x, radial-gradient(50% 100% at 50% 100%, #ffffff 97%, #0000) 90px 24px / 330px 84px repeat-x, radial-gradient(50% 100% at 50% 0%, #eaf3fc 97%, #0000) 40px 100% / 240px 64px repeat-x, radial-gradient(36% 13% at 22% 30%, #dbe8f6, #dbe8f600 72%) no-repeat, radial-gradient(42% 15% at 76% 46%, #dfeaf7, #dfeaf700 72%) no-repeat, radial-gradient(38% 12% at 38% 64%, #d8e6f5, #d8e6f500 72%) no-repeat, radial-gradient(30% 10% at 84% 78%, #dce9f6, #dce9f600 72%) no-repeat, linear-gradient(#ffffff, #eaf3fc) 0 63px / 100% calc(100% - 126px) no-repeat; }
+/* Mountain → sky: a cloud bank about half the screen tall, with billowing edges above and below and soft shading
+   inside. It never fills the view: the sky and the scene stay visible above and below it as it passes. Journey.tsx
+   starts it just above the screen, so its height is also in the sweep there. */
+.veil-cloud { height: 52vh; background: radial-gradient(50% 100% at 50% 100%, #ffffff 97%, #0000) 0 0 / 210px 64px repeat-x, radial-gradient(50% 100% at 50% 100%, #ffffff 97%, #0000) 90px 24px / 330px 84px repeat-x, radial-gradient(50% 100% at 50% 0%, #eaf3fc 97%, #0000) 40px 100% / 240px 64px repeat-x, radial-gradient(34% 26% at 24% 42%, #dbe8f6, #dbe8f600 72%) no-repeat, radial-gradient(40% 28% at 74% 58%, #dfeaf7, #dfeaf700 72%) no-repeat, linear-gradient(#ffffff, #eaf3fc) 0 63px / 100% calc(100% - 126px) no-repeat; }
 /* Sky → space: the bright curved edge of the atmosphere, then a flash as the craft breaks through. The edge is one
    gradient (a glow that brightens to a thin line at the rim of an ellipse), with no shadow or rounded box to raster. */
 .veil-limb { height: 70vh; background: radial-gradient(92% 96% at 50% 100%, #8fd2ff00 52%, #8fd2ff70 90%, #c4e8ffd9 98.4%, #f4fbff 99.3%, #a6dcff66 100%, #a6dcff00 104%) no-repeat; }
@@ -668,9 +692,11 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
   /* Fully opaque: without the blur, anything translucent here lets the page text show through the header and menu. */
   .site-header, .main-nav { background: var(--chrome-solid); }
   .sky-section .project-card { background: var(--surface-raised); }
-  /* The air stays, but holds still: on a phone every drifting full-screen layer is composited again on each frame, on
-     top of the WebGL canvas. The scroll-driven parallax and the chapter crossings are unaffected. */
-  .atmo i { animation: none; }
+  /* The air stays, but its wide layers hold still: on a phone every drifting full-screen layer is composited again
+     on each frame, on top of the WebGL canvas. The small fliers (airliner, balloons) keep moving. The scroll-driven
+     parallax and the chapter crossings are unaffected. */
+  .atmo i:not(.jet, .balloon) { animation: none; }
+  .cirrus, .cloud-far, .cloud-sea { right: 0; }
   .twinkle.late { display: none; }
   .main-nav { gap: 20px; }
   .hero-actions .button { min-height: 42px; padding: 12px 16px; }

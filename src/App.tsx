@@ -250,7 +250,7 @@ export default function App() {
     <div className="journey-backdrop" aria-hidden="true">
       <div className="atmo atmo-ground"><i className="low-clouds" /><i className="hills" /></div>
       <div className="atmo atmo-mountain"><i className="ridge" /><i className="mist" /></div>
-      <div className="atmo atmo-sky"><i className="cirrus" /><i className="cloud-sea" /></div>
+      <div className="atmo atmo-sky"><i className="rays" /><i className="cirrus" /><i className="jet" /><i className="cloud-far" /><i className="balloon b1" /><i className="balloon b2" /><i className="balloon b3" /><i className="cloud-sea" /></div>
       <div className="atmo atmo-space"><i className="twinkle" /><i className="twinkle late" /></div>
     </div>
     <Suspense fallback={<div className="journey-stage scene-loading" aria-hidden="true">กำลังสร้างโลกเล็ก ๆ ...</div>}><Journey paused={paused} spot={spot} pulse={pulse} onChapter={onChapter} onProgress={onProgress} onFallback={onFallback} /></Suspense>

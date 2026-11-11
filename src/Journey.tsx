@@ -1212,9 +1212,9 @@ export default function Journey({ paused, spot = null, pulse, onChapter, onProgr
         // Ground → mountain: a band of mist comes down across the view as the climb ends.
         const mist = (progress - 0.86) / 0.14;
         write(veil.mist, bell(mist) > 0 ? 1 : 0, sweep(-85, 105, mist));
-        // Mountain → sky: the flight goes up through a cloud bank, which fills the view for a moment.
+        // Mountain → sky: the flight goes up through a cloud bank about half the screen tall (.veil-cloud is 52vh).
         const cloud = (progress - 1.85) / 0.15;
-        write(veil.cloud, bell(cloud) > 0 ? 1 : 0, sweep(-130, 105, cloud));
+        write(veil.cloud, bell(cloud) > 0 ? 1 : 0, sweep(-56, 105, cloud));
         // Sky → space: the bright edge of the atmosphere falls away, with a flash as the craft breaks through and the
         // stars drawn out into streaks until it settles. The flash stays faint when motion is paused.
         const exit = (progress - 2.8) / 0.19;
