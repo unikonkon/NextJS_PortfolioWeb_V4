@@ -1,6 +1,7 @@
-/** What the 3D scene says in words: the labels pinned to its objects and the milestones of the journey. Kept free of
- *  three.js so App can use it without loading the 3D bundle. A label's `id` is also what App sends to the scene to
- *  highlight that object (hovering a timeline entry, a work row, a legend item or picking a project filter). */
+/** What the 3D scene says in words: the labels of its objects and the milestones of the journey. Kept free of
+ *  three.js so App can use it without loading the 3D bundle. A label stays hidden until the page points at it (a
+ *  hovered timeline entry, work row or legend item, or the chosen project filter); its `id` is what App sends to the
+ *  scene for that. */
 import { projects, type Project } from '../data/personalProjects';
 import { workProjects } from '../data/workProject';
 
@@ -24,14 +25,10 @@ export interface SceneLabel {
   note: string;
   /** Which way the text runs from the point it marks. */
   side: 'left' | 'right';
-  /** Phones only have room for a few labels per chapter. */
-  phone?: boolean;
-  /** Shown only while App highlights it, never on its own. */
-  onDemand?: boolean;
 }
 
 // Raw progress: a chapter's own section covers the first 0.7 of its number, the flight to the next one the rest.
-// Labels stay on a little into the flight, where nothing covers the scene; they follow their objects out of view.
+// A label can still be pointed at a little into the flight; it follows its object out of view.
 const ground = { from: -1, until: 0.62 };
 const mountain = { from: 0.94, until: 1.9 };
 const sky = { from: 1.93, until: 2.9 };
@@ -39,21 +36,21 @@ const space = { from: 2.93, until: 5 };
 
 export const sceneLabels: SceneLabel[] = [
   { id: 'bench', ...ground, title: 'โต๊ะทดลอง', note: 'IoT และ Arduino', side: 'left' },
-  { id: 'farm', ...ground, title: 'แปลงผัก', note: 'โครงงาน IoT เพื่อเกษตรกร', side: 'right', phone: true },
-  { id: 'path', ...ground, title: 'ทางเดิน', note: 'ขึ้นสู่ภูเขาลูกแรก', side: 'left', onDemand: true },
+  { id: 'farm', ...ground, title: 'แปลงผัก', note: 'โครงงาน IoT เพื่อเกษตรกร', side: 'right' },
+  { id: 'path', ...ground, title: 'ทางเดิน', note: 'ขึ้นสู่ภูเขาลูกแรก', side: 'left' },
   { id: 'flag-0', ...mountain, title: '2020', note: 'จบวิศวกรรมอิเล็กทรอนิกส์', side: 'right' },
-  { id: 'flag-1', ...mountain, title: '2022', note: 'Frontend Developer · Vertobase', side: 'right', phone: true },
-  { id: 'flag-2', ...mountain, title: '2023', note: 'Full Stack Developer · iApp', side: 'right', phone: true },
-  { id: 'summit', ...mountain, title: 'ยอดเขา', note: 'ตำแหน่งปัจจุบัน', side: 'left', onDemand: true },
-  ...workProjects.map((project, index): SceneLabel => ({ id: `work-${index}`, ...mountain, title: `0${index + 1}`, note: project.title, side: 'right', onDemand: true })),
+  { id: 'flag-1', ...mountain, title: '2022', note: 'Frontend Developer · Vertobase', side: 'right' },
+  { id: 'flag-2', ...mountain, title: '2023', note: 'Full Stack Developer · iApp', side: 'right' },
+  { id: 'summit', ...mountain, title: 'ยอดเขา', note: 'ตำแหน่งปัจจุบัน', side: 'left' },
+  ...workProjects.map((project, index): SceneLabel => ({ id: `work-${index}`, ...mountain, title: `0${index + 1}`, note: project.title, side: 'right' })),
   ...projectCategories.map((name, index): SceneLabel => ({ id: `island-${index}`, ...sky, title: name, note: `${filterCounts[name]} โปรเจกต์`, side: index % 2 ? 'right' : 'left' })),
-  { id: 'balloon', ...sky, title: 'บอลลูน', note: 'ไอเดียที่ปล่อยให้ลอย', side: 'right', phone: true },
-  { id: 'planes', ...sky, title: 'เครื่องบินกระดาษ', note: 'การทดลองเล็ก ๆ', side: 'left', onDemand: true },
-  { id: 'planet', ...space, title: 'AI & Code', note: 'โลกใบใหม่ที่กำลังสำรวจ', side: 'right', phone: true },
+  { id: 'balloon', ...sky, title: 'บอลลูน', note: 'ไอเดียที่ปล่อยให้ลอย', side: 'right' },
+  { id: 'planes', ...sky, title: 'เครื่องบินกระดาษ', note: 'การทดลองเล็ก ๆ', side: 'left' },
+  { id: 'planet', ...space, title: 'AI & Code', note: 'โลกใบใหม่ที่กำลังสำรวจ', side: 'right' },
   { id: 'moon-0', ...space, title: 'System design', note: 'กำลังเรียนรู้', side: 'right' },
   { id: 'moon-1', ...space, title: 'กระบวนการพัฒนา', note: 'กำลังเรียนรู้', side: 'left' },
-  { id: 'satellite', ...space, title: 'ดาวเทียม', note: 'ทักมาได้เสมอ', side: 'right', phone: true },
-  { id: 'rocket', ...space, title: 'ยานอวกาศ', note: 'ออกเดินทางสู่บทถัดไป', side: 'left', onDemand: true },
+  { id: 'satellite', ...space, title: 'ดาวเทียม', note: 'ทักมาได้เสมอ', side: 'right' },
+  { id: 'rocket', ...space, title: 'ยานอวกาศ', note: 'ออกเดินทางสู่บทถัดไป', side: 'left' },
 ];
 
 /** Moments of the journey by the altitude the altimeter shows, for the caption beside it and the ticks on the route.

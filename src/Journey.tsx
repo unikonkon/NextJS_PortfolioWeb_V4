@@ -1039,10 +1039,8 @@ export default function Journey({ paused, spot = null, pulse, onChapter, onProgr
           const spot = spots[label.id];
           if (!node || !spot) return;
           const focused = pointed.has(label.id);
-          // In its chapter a label fades with the scroll position; on-demand ones and, on phones, the less
-          // important ones wait until the page points at them.
-          let goal = smooth((progressNow - label.from) / 0.04) * (1 - smooth((progressNow - label.until + 0.04) / 0.04));
-          if (!focused && (label.onDemand || (narrow && !label.phone))) goal = 0;
+          // A label shows only while the page points at it, and only in its own chapter.
+          let goal = focused ? smooth((progressNow - label.from) / 0.04) * (1 - smooth((progressNow - label.until + 0.04) / 0.04)) : 0;
           let placed = false;
           if (goal > 0 || labelAlpha[index] > 0.004) {
             spot.object.localToWorld(projected.copy(spot.offset)).project(camera);
@@ -1173,6 +1171,58 @@ export default function Journey({ paused, spot = null, pulse, onChapter, onProgr
       let elapsed = 0;
       let animation = 0;
 
+      // The air around the scene (App's .atmo layers, behind the canvas) and what the traveller passes through between
+      // chapters (.journey-veil, in front of it). Both are plain page layers moved by the scroll position, so they cost
+      // the WebGL scene nothing; a layer that is not showing is hidden outright instead of left transparent.
+      const write = (node: HTMLElement | null, opacity: number, transform?: string) => {
+        if (!node) return;
+        const visibility = opacity > 0.004 ? 'visible' : 'hidden';
+        if (node.style.visibility !== visibility) node.style.visibility = visibility;
+        if (visibility === 'hidden') return;
+        const value = opacity.toFixed(3);
+        if (node.style.opacity !== value) node.style.opacity = value;
+        if (transform !== undefined && node.style.transform !== transform) node.style.transform = transform;
+      };
+      const backdrop = document.querySelector<HTMLElement>('.journey-backdrop');
+      const veilRoot = document.querySelector<HTMLElement>('.journey-veil');
+      // Without a GPU (software WebGL) every extra full-screen layer is blended on the CPU, on top of a scene that
+      // already takes hundreds of milliseconds a frame there: the air and the crossings are left out and the page
+      // keeps its plain sky colours.
+      const gl = renderer.getContext();
+      const gpu = gl.getExtension('WEBGL_debug_renderer_info');
+      const plainAir = /swiftshader|llvmpipe|software/i.test(String(gpu ? gl.getParameter(gpu.UNMASKED_RENDERER_WEBGL) : ''));
+      if (plainAir) for (const node of [backdrop, veilRoot]) node?.setAttribute('data-air', 'off');
+      const airs = ['ground', 'mountain', 'sky', 'space'].map(name => document.querySelector<HTMLElement>(`.atmo-${name}`));
+      const veil = Object.fromEntries(['mist', 'cloud', 'limb', 'flash'].map(name => [name, document.querySelector<HTMLElement>(`.veil-${name}`)]));
+      const bell = (t: number) => (t <= 0 || t >= 1 ? 0 : Math.sin(Math.PI * t) ** 2);
+      const sweep = (from: number, to: number, t: number) => `translate3d(0, ${(from + (to - from) * t).toFixed(2)}vh, 0)`;
+      const updateAtmosphere = (progress: number) => {
+        if (plainAir) return;
+        const air = [
+          1 - smooth((progress - 0.8) / 0.18),
+          smooth((progress - 0.8) / 0.18) * (1 - smooth((progress - 1.8) / 0.14)),
+          smooth((progress - 1.86) / 0.14) * (1 - smooth((progress - 2.74) / 0.2)),
+          smooth((progress - 2.84) / 0.16),
+        ];
+        airs.forEach((node, index) => {
+          write(node, air[index]);
+          // --rise is how far the camera is above (or below) the chapter: the layer's parts sink at their own rates.
+          if (node && air[index] > 0.004) node.style.setProperty('--rise', clamp(progress - index, -0.4, 1).toFixed(3));
+        });
+        // Ground → mountain: a band of mist comes down across the view as the climb ends.
+        const mist = (progress - 0.86) / 0.14;
+        write(veil.mist, bell(mist) > 0 ? 1 : 0, sweep(-85, 105, mist));
+        // Mountain → sky: the flight goes up through a cloud bank, which fills the view for a moment.
+        const cloud = (progress - 1.85) / 0.15;
+        write(veil.cloud, bell(cloud) > 0 ? 1 : 0, sweep(-130, 105, cloud));
+        // Sky → space: the bright edge of the atmosphere falls away, with a flash as the craft breaks through and the
+        // stars drawn out into streaks until it settles. The flash stays faint when motion is paused.
+        const exit = (progress - 2.8) / 0.19;
+        write(veil.limb, bell(exit) > 0 ? Math.min(1, bell(exit) * 3) : 0, sweep(-30, 125, exit));
+        write(veil.flash, bell((exit - 0.3) / 0.4) * (pauseRef.current ? 0.2 : 0.6));
+        backdrop?.style.setProperty('--warp', (1 + 5 * bell((exit - 0.38) / 0.62)).toFixed(2));
+      };
+
       let appliedProgress = -1;
       const applyProgress = (progress: number) => {
         progressNow = progress;
@@ -1190,6 +1240,7 @@ export default function Journey({ paused, spot = null, pulse, onChapter, onProgr
         root.style.setProperty('--sky-bottom', `#${bottomColor.getHexString()}`);
         root.style.setProperty('--sky-top', `#${topColor.getHexString()}`);
         root.style.setProperty('--stars', smooth((progress - 2.55) / 0.4).toFixed(3));
+        updateAtmosphere(progress);
         const nextChapter = clamp(Math.floor(progress + 0.15), 0, 3);
         if (nextChapter !== chapter) { chapter = nextChapter; chapterRef.current(chapter); }
         progressRef.current?.(progress);
@@ -1405,6 +1456,7 @@ export default function Journey({ paused, spot = null, pulse, onChapter, onProgr
         document.removeEventListener('visibilitychange', visibility);
         renderer.domElement.removeEventListener('webglcontextlost', contextLost);
         renderer.domElement.remove();
+        for (const node of [backdrop, veilRoot]) node?.removeAttribute('data-air');
         const release = () => {
           const geometries = new Set<THREE.BufferGeometry>();
           scene.traverse(object => {

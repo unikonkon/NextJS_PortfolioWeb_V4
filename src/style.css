@@ -1,6 +1,7 @@
-/* Layout of this file: tokens, base, shared pieces, then the page top to bottom (header, scene chrome, ground,
-   chapter breaks, chapters, mountain, sky, chapter motifs, dialog, space), and finally one block per breakpoint,
-   widest first. Outside the breakpoint blocks a selector has one rule of its own; a few also appear in a shared list. */
+/* Layout of this file: tokens, base, shared pieces, then the page top to bottom (header, scene chrome, atmosphere
+   and chapter crossings, ground, chapter breaks, chapters, mountain, sky, chapter motifs, dialog, space), and finally
+   one block per breakpoint, widest first. Outside the breakpoint blocks a selector has one rule of its own; a few
+   also appear in a shared list. */
 
 /* ==== Tokens ==== */
 /* Static palette of the light reading surfaces. Change a colour, radius or panel fill here, not in the rules below. */
@@ -110,8 +111,55 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
 .app[data-chapter='space'] .site-header { color: var(--space-text); }
 
 /* ==== Scene chrome: backdrop, 3D stage, chapter rail, HUD ==== */
-.journey-backdrop { position: fixed; inset: 0; z-index: -2; background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 48%, var(--sky-bottom) 100%); pointer-events: none; }
-.journey-backdrop::after { content: ''; position: absolute; inset: 0; opacity: var(--stars); background-image: radial-gradient(#e0e8c6 .7px, transparent .7px), radial-gradient(#e0e8c6 1px, transparent 1px); background-size: 71px 83px, 137px 151px; background-position: 0 0, 30px 50px; }
+.journey-backdrop { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 48%, var(--sky-bottom) 100%); pointer-events: none; }
+/* Stars; --warp (written by Journey.tsx) draws them out into streaks while the craft leaves the atmosphere. */
+.journey-backdrop::after { content: ''; position: absolute; inset: 0; opacity: var(--stars); background-image: radial-gradient(#e0e8c6 .7px, transparent .7px), radial-gradient(#e0e8c6 1px, transparent 1px); background-size: 71px 83px, 137px 151px; background-position: 0 0, 30px 50px; transform: scaleY(var(--warp, 1)); will-change: transform, opacity; }
+
+/* ==== Atmosphere: the air of each chapter, behind the 3D scene ==== */
+/* One layer per chapter, all soft gradients and two-tone silhouettes so the scene in front stays the subject.
+   Journey.tsx fades the layers with the scroll position and hides the ones that are not showing. What holds still
+   (sun, haze, light shafts, nebulae) is the layer's own background; only what moves is a separate element, at most
+   two per chapter, so the browser composites very little on top of the WebGL canvas. --rise is how far the camera is
+   above the chapter: the moving parts sink with it (`translate`), which leaves `transform` free for the slow drift.
+   Nothing here uses a filter or a backdrop-filter. */
+/* Its own compositor layer: the sky colour behind it is repainted on every scroll frame, and this must not be. */
+.atmo { position: absolute; inset: 0; --rise: 0; will-change: opacity; }
+.atmo:not(.atmo-ground) { visibility: hidden; opacity: 0; }
+/* Journey.tsx switches the air off where WebGL runs in software: there every layer is blended on the CPU. */
+[data-air=off] .atmo, .journey-veil[data-air=off] { display: none; }
+.atmo > i { position: absolute; display: block; will-change: transform; }
+/* 01 Ground: a low morning sun and two lines of far hills. */
+.atmo-ground { background: radial-gradient(39vh 39vh at calc(100% - 29vh) 15vh, #fff8d8 0, #ffeeb4b3 15%, #ffe2a040 42%, #ffe2a000 72%) no-repeat; }
+.hills, .ridge { left: -3%; right: -3%; bottom: -30vh; height: 76vh; background: no-repeat center / 100% 100%; }
+.hills { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 720' preserveAspectRatio='none'%3E%3Cpath fill='%23d6e0b4' fill-opacity='1' d='M0 200C200 140 380 230 620 180S980 130 1180 190 1360 220 1440 170V720H0Z'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 720' preserveAspectRatio='none'%3E%3Cpath fill='%23e6ebc9' fill-opacity='1' d='M0 130C180 60 300 150 480 110S760 40 960 100 1260 150 1440 80V720H0Z'/%3E%3C/svg%3E"); translate: 0 calc(var(--rise) * 18vh); }
+/* 02 Mountain: warm haze, two far ridges and a slow band of mist between them and the scene. */
+.atmo-mountain { background: radial-gradient(64vh 64vh at 86% 14%, #fff5d6b8, #fff5d600 70%), linear-gradient(to top, #fff2dab8 0%, #fff2da00 52%); }
+.ridge { height: 84vh; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 720' preserveAspectRatio='none'%3E%3Cpath fill='%23cfa682' fill-opacity='0.6' d='M0 220L120 160 210 195 330 130 450 185 560 140 690 200 820 120 930 175 1050 135 1170 195 1290 150 1440 200V720H0Z'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 720' preserveAspectRatio='none'%3E%3Cpath fill='%23e2bd94' fill-opacity='0.7' d='M0 150L90 110 170 135 280 60 360 105 470 40 560 95 680 70 790 20 900 85 1010 55 1120 100 1230 45 1330 90 1440 60V720H0Z'/%3E%3C/svg%3E"); translate: 0 calc(var(--rise) * 14vh); }
+.atmo-mountain .mist { left: -20%; width: 140%; top: 60vh; height: 26vh; background: linear-gradient(#fff6e400, #fff6e4bd 45%, #fff6e4bd 55%, #fff6e400); translate: 0 calc(var(--rise) * 14vh); animation: air-drift 46s ease-in-out infinite alternate; }
+/* 03 Sky: shafts of light, thin high cloud drifting, and a sea of cloud below. */
+.atmo-sky { background: conic-gradient(from 96deg at 8% -12%, #fff0 0deg, #ffffff2b 7deg, #fff0 14deg, #ffffff20 23deg, #fff0 31deg, #ffffff24 40deg, #fff0 50deg, #ffffff19 60deg, #fff0 70deg); }
+.atmo-sky .cirrus { left: -15%; width: 130%; top: 0; height: 56vh; background: radial-gradient(60% 7% at 30% 30%, #ffffff7a, #fff0 70%), radial-gradient(44% 5% at 74% 46%, #ffffff66, #fff0 70%), radial-gradient(50% 6% at 56% 14%, #ffffff5c, #fff0 70%), radial-gradient(30% 4% at 12% 62%, #ffffff52, #fff0 70%); translate: 0 calc(var(--rise) * 8vh); animation: air-drift 70s ease-in-out infinite alternate; }
+.atmo-sky .cloud-sea { left: -10%; width: 120%; bottom: -36vh; height: 60vh; background: radial-gradient(50% 100% at 50% 100%, #f4f9fe 97%, #0000) 0 0 / 190px 56px repeat-x, radial-gradient(50% 100% at 50% 100%, #ffffffd9 97%, #0000) 70px 22px / 290px 70px repeat-x, linear-gradient(#f4f9fe, #e4f0fb) 0 55px / 100% 100% no-repeat; opacity: .85; translate: 0 calc(var(--rise) * 18vh); }
+/* 04 Space: faint nebulae and a few larger stars that twinkle. */
+.atmo-space { background: radial-gradient(42% 32% at 20% 30%, #5d4fa85c, #5d4fa800 70%), radial-gradient(46% 36% at 82% 66%, #1f7f9052, #1f7f9000 70%), radial-gradient(30% 22% at 62% 16%, #a8568a3d, #a8568a00 70%); }
+.atmo-space .twinkle { inset: 0; will-change: opacity; background: radial-gradient(#f4f8ff 1.3px, #f4f8ff00 1.9px) 40px 60px / 260px 230px, radial-gradient(#f4f8ff 1.1px, #f4f8ff00 1.7px) 170px 150px / 310px 270px; animation: air-twinkle 5s ease-in-out infinite alternate; }
+@keyframes air-drift { from { transform: translate3d(-3%, 0, 0); } to { transform: translate3d(3%, 0, 0); } }
+@keyframes air-twinkle { from { opacity: .3; } }
+
+/* ==== Chapter crossings: what the traveller passes through, in front of the scene ==== */
+/* Above the canvas and the skill cards, below the page content. Journey.tsx moves each piece with the scroll position
+   through the gap between two chapters, so scrolling back plays it in reverse. */
+.journey-veil { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.journey-veil > i { position: absolute; top: 0; left: 0; right: 0; display: block; visibility: hidden; will-change: transform, opacity; }
+/* Ground → mountain: a band of mist. */
+.veil-mist { height: 80vh; background: linear-gradient(#fff8ec00, #fff8eccc 30%, #fff8eceb 50%, #fff8eccc 70%, #fff8ec00); }
+/* Mountain → sky: a cloud bank taller than the screen, with billowing edges above and below and soft shading inside,
+   so the moment it fills the view still reads as cloud. */
+.veil-cloud { height: 130vh; background: radial-gradient(50% 100% at 50% 100%, #ffffff 97%, #0000) 0 0 / 210px 64px repeat-x, radial-gradient(50% 100% at 50% 100%, #ffffff 97%, #0000) 90px 24px / 330px 84px repeat-x, radial-gradient(50% 100% at 50% 0%, #eaf3fc 97%, #0000) 40px 100% / 240px 64px repeat-x, radial-gradient(36% 13% at 22% 30%, #dbe8f6, #dbe8f600 72%) no-repeat, radial-gradient(42% 15% at 76% 46%, #dfeaf7, #dfeaf700 72%) no-repeat, radial-gradient(38% 12% at 38% 64%, #d8e6f5, #d8e6f500 72%) no-repeat, radial-gradient(30% 10% at 84% 78%, #dce9f6, #dce9f600 72%) no-repeat, linear-gradient(#ffffff, #eaf3fc) 0 63px / 100% calc(100% - 126px) no-repeat; }
+/* Sky → space: the bright curved edge of the atmosphere, then a flash as the craft breaks through. The edge is one
+   gradient (a glow that brightens to a thin line at the rim of an ellipse), with no shadow or rounded box to raster. */
+.veil-limb { height: 70vh; background: radial-gradient(92% 96% at 50% 100%, #8fd2ff00 52%, #8fd2ff70 90%, #c4e8ffd9 98.4%, #f4fbff 99.3%, #a6dcff66 100%, #a6dcff00 104%) no-repeat; }
+.veil-flash { height: 100%; background: radial-gradient(circle at 50% 46%, #ffffff, #dcf1ffd9 46%, #c2e6ff99); }
 .journey-stage { position: fixed; inset: var(--header-height) 0 0; z-index: -1; width: 100%; overflow: hidden; pointer-events: none; }
 .journey-stage canvas { display: block; width: 100% !important; height: 100% !important; transition: opacity .6s ease; }
 .scene-loading { display: grid; place-items: center; height: 100%; font-size: 12px; color: var(--text-soft); }
@@ -615,6 +663,9 @@ h2 { font-size: clamp(31px, 3.4vw, 47px); font-weight: 500; line-height: 1.35; l
   /* Fully opaque: without the blur, anything translucent here lets the page text show through the header and menu. */
   .site-header, .main-nav { background: var(--chrome-solid); }
   .sky-section .project-card { background: var(--surface-raised); }
+  /* The air stays, but holds still: on a phone every drifting full-screen layer is composited again on each frame, on
+     top of the WebGL canvas. The scroll-driven parallax and the chapter crossings are unaffected. */
+  .atmo i { animation: none; }
   .main-nav { gap: 20px; }
   .hero-actions .button { min-height: 42px; padding: 12px 16px; }
   .hero-bottom { background: var(--float); }

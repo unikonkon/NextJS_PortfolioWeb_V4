@@ -246,8 +246,17 @@ export default function App() {
 
   return <div className={`app ${paused ? 'motion-paused' : ''}`} data-chapter={active}>
     <a className="skip-link" href="#main">ข้ามไปเนื้อหา</a>
-    <div className="journey-backdrop" aria-hidden="true" />
+    {/* The air of each chapter, behind the 3D scene: Journey fades and shifts these layers with the scroll position. */}
+    <div className="journey-backdrop" aria-hidden="true">
+      <div className="atmo atmo-ground"><i className="hills" /></div>
+      <div className="atmo atmo-mountain"><i className="ridge" /><i className="mist" /></div>
+      <div className="atmo atmo-sky"><i className="cirrus" /><i className="cloud-sea" /></div>
+      <div className="atmo atmo-space"><i className="twinkle" /></div>
+    </div>
     <Suspense fallback={<div className="journey-stage scene-loading" aria-hidden="true">กำลังสร้างโลกเล็ก ๆ ...</div>}><Journey paused={paused} spot={spot} pulse={pulse} onChapter={onChapter} onProgress={onProgress} onFallback={onFallback} /></Suspense>
+    {/* What the traveller passes through between chapters, in front of the scene and behind the page content:
+        a band of mist on the climb, a cloud bank on the way to the sky, the edge of the atmosphere before space. */}
+    <div className="journey-veil" aria-hidden="true"><i className="veil-mist" /><i className="veil-cloud" /><i className="veil-limb" /><i className="veil-flash" /></div>
 
     <header className="site-header"><a className="brand" href="#ground" aria-label="Suthep กลับจุดเริ่มต้น"><span className="brand-icon"><Mountain size={21} strokeWidth={1.7} /></span>suthep<span className="brand-period">.</span></a><nav className={menuOpen ? 'main-nav open' : 'main-nav'} aria-label="เมนูหลัก">{navLinks.map(([id, label]) => <a key={id} href={`#${id}`} className={active === id ? 'active' : undefined} aria-current={active === id ? 'location' : undefined} onClick={() => setMenuOpen(false)}>{label}{id === 'sky' && <> <span>{projects.length.toString().padStart(2, '0')}</span></>}</a>)}</nav><a className="header-contact" href="mailto:bananammm0001@gmail.com">Let’s talk <ArrowUpRight size={16} /></a><button className="menu-toggle icon-button" aria-label={menuOpen ? 'ปิดเมนู' : 'เปิดเมนู'} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button></header>
 
