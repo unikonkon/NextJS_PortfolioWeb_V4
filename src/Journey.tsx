@@ -86,7 +86,9 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+      // Hidden until the first frame is drawn, then faded in by the stylesheet (.journey-stage canvas).
       renderer.domElement.style.visibility = 'hidden';
+      renderer.domElement.style.opacity = '0';
       container.appendChild(renderer.domElement);
       // Development-only counters let browser tests inspect the actual GPU workload without a UI overlay.
       const diagnostics = import.meta.env.DEV ? { calls: 0, triangles: 0, frames: 0, pixelRatio, cpuMs: 0, aircraftY: 0, passengerY: 0, progress: 0 } : null;
@@ -829,7 +831,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
       };
       let climbFade = '';
       // Once a pair has been shown it stays on screen when the visitor scrolls back up through the climb: pairs above
-      // the current position sit at 40% like the older ones, and everything fades only when the visitor scrolls back
+      // the current position sit at 70% like the older ones, and everything fades only when the visitor scrolls back
       // into the hero itself (below keepAltitude, where the cards would sit behind the hero text). Narrow screens only
       // have room for one pair, so there only the first pair is kept when scrolling back above its altitude.
       const shown: boolean[] = new Array(pairCount).fill(false);
@@ -872,12 +874,13 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
           if (index % 2 === 1) previousRaw = raw;
           if (raw >= 0.999) shown[pair] = true;
           const sticky = shown[pair] && (!narrow || pair === 0);
-          const reveal = (sticky ? (narrow ? 1 : 0.4 + 0.6 * raw) * keep : raw) * hideAll;
-          // Desktop keeps the current and previous pair readable and dims older ones; narrow screens show one pair at a time.
+          const reveal = (sticky ? (narrow ? 1 : 0.7 + 0.3 * raw) * keep : raw) * hideAll;
+          // Desktop keeps the current and previous pair at full strength and dims older ones to 70%, which still reads
+          // over the clouds; narrow screens show one pair at a time.
           const later = pairKeys[pair + (narrow ? 1 : 2)];
           // Narrow screens cross-fade pairs: the old pair fades out exactly while the next fades in, so they never stack
           // (pairs only a few tens of metres apart hand over almost immediately).
-          const dim = later === undefined ? 1 : 1 - (narrow ? smooth((live - later + fadeWindow) / fadeWindow) : 0.6 * smooth((live - later + fadeWindow * 0.3) / fadeWindow));
+          const dim = later === undefined ? 1 : 1 - (narrow ? smooth((live - later + fadeWindow) / fadeWindow) : 0.3 * smooth((live - later + fadeWindow * 0.3) / fadeWindow));
           alpha[index] = reveal * dim;
           const k = pauseRef.current ? 1 : 1 - Math.exp(-delta / 180);
           easedAlpha[index] += (alpha[index] - easedAlpha[index]) * k;
@@ -922,7 +925,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
             if (exit > 0.002) {
               // While a card is still faint it only claims part of its slot, so the cards below slide down with its
               // fade-in instead of jumping the moment it appears (fully claimed once it is as visible as a dimmed card).
-              const claimed = Math.min(1, easedAlpha[index] / 0.4);
+              const claimed = Math.min(1, easedAlpha[index] / 0.7);
               stack[column] = y - (1 - claimed) * (cardHeight + gap);
               const cx = column === 1 ? outerX : x;
               node.style.visibility = 'visible';
@@ -1165,7 +1168,7 @@ export default function Journey({ paused, onChapter, onProgress, onFallback }: J
         const spaceChapter = Math.min(3, Math.floor(runnerState.progress));
         spaceEffects.update(spaceChapter + travel(runnerState.progress - spaceChapter), elapsed, pauseRef.current, camera, container.clientWidth);
         renderer.render(scene, camera);
-        if (renderer.domElement.style.visibility === 'hidden') renderer.domElement.style.visibility = 'visible';
+        if (renderer.domElement.style.visibility === 'hidden') { renderer.domElement.style.visibility = 'visible'; renderer.domElement.style.opacity = '1'; }
         updateSkillCards(delta);
         if (diagnostics) {
           diagnostics.calls = renderer.info.render.calls;

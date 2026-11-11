@@ -33,7 +33,7 @@ def fit(image: Image.Image, max_side: int) -> Image.Image:
     return image.resize(size, Image.LANCZOS)
 
 
-def key_black_backdrop(image: Image.Image, threshold: int = 34) -> Image.Image:
+def key_black_backdrop(image: Image.Image, threshold: int = 48) -> Image.Image:
     """Turn the flat black backdrop of a flattened cut-out into transparency.
 
     A flood fill from the four corners marks only the background that is connected
@@ -52,10 +52,18 @@ def key_black_backdrop(image: Image.Image, threshold: int = 34) -> Image.Image:
         for x in range(w):
             if pixels[x, y] == marker:
                 mask_pixels[x, y] = 0
-    # Slightly erode + soften the edge so the JPEG fringe around the silhouette disappears.
-    mask = mask.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
+    # The flattened cut-out carries a dark halo a few pixels wide around the silhouette. Eroding the mask by 4 px
+    # (at the 1552 px source size) removes it, and the blur gives the edge a soft alpha ramp instead of a hard step.
+    mask = mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(1.8))
     out = image.convert('RGBA')
     out.putalpha(mask)
+    return out
+
+
+def soften_cutout(image: Image.Image, erode: int = 5, blur: float = 1.4) -> Image.Image:
+    """Trim the fringe of an already transparent cut-out and soften its hard alpha edge."""
+    out = image.convert('RGBA')
+    out.putalpha(out.getchannel('A').filter(ImageFilter.MinFilter(erode)).filter(ImageFilter.GaussianBlur(blur)))
     return out
 
 
@@ -72,7 +80,7 @@ def portraits() -> None:
     save_webp(fit(key_black_backdrop(portrait), 1200), PHOTOS / 'suthep-portrait.webp', quality=86)
 
     outdoor = Image.open(PUBLIC / 'person.png').convert('RGBA')
-    save_webp(fit(outdoor, 1100), PHOTOS / 'suthep-outdoor.webp', quality=86)
+    save_webp(fit(soften_cutout(outdoor), 1100), PHOTOS / 'suthep-outdoor.webp', quality=86)
 
     presenting = Image.open(PUBLIC / 'image1.jpg').convert('RGB')
     save_webp(fit(presenting, 1600), PHOTOS / 'suthep-presenting.webp', quality=80)
