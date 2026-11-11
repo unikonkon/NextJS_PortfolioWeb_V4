@@ -248,10 +248,10 @@ export default function App() {
     <a className="skip-link" href="#main">ข้ามไปเนื้อหา</a>
     {/* The air of each chapter, behind the 3D scene: Journey fades and shifts these layers with the scroll position. */}
     <div className="journey-backdrop" aria-hidden="true">
-      <div className="atmo atmo-ground"><i className="hills" /></div>
+      <div className="atmo atmo-ground"><i className="low-clouds" /><i className="hills" /></div>
       <div className="atmo atmo-mountain"><i className="ridge" /><i className="mist" /></div>
       <div className="atmo atmo-sky"><i className="cirrus" /><i className="cloud-sea" /></div>
-      <div className="atmo atmo-space"><i className="twinkle" /></div>
+      <div className="atmo atmo-space"><i className="twinkle" /><i className="twinkle late" /></div>
     </div>
     <Suspense fallback={<div className="journey-stage scene-loading" aria-hidden="true">กำลังสร้างโลกเล็ก ๆ ...</div>}><Journey paused={paused} spot={spot} pulse={pulse} onChapter={onChapter} onProgress={onProgress} onFallback={onFallback} /></Suspense>
     {/* What the traveller passes through between chapters, in front of the scene and behind the page content:
